@@ -9,6 +9,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  REDIS_URL: redis://127.0.0.1/
 
 jobs:
   test:
@@ -19,8 +20,6 @@ jobs:
         image: redis
         ports:
           - 6379:6379
-    env:
-      REDIS_URL: redis://127.0.0.1/
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
