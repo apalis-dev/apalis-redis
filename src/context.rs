@@ -1,15 +1,14 @@
 use std::{convert::Infallible, time::SystemTime};
-
-use apalis_core::{task::Task, task_fn::FromRequest};
-use serde::{Deserialize, Serialize};
+use apalis_core::{task::{Task, metadata::MetadataExt}, task_fn::FromRequest};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use ulid::Ulid;
 
 /// The context for a redis storage job
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RedisContext {
-    pub(super) max_attempts: u32,
-    pub(super) lock_by: Option<String>,
-    pub(super) run_at: Option<SystemTime>,
+    pub max_attempts: u32,
+    pub lock_by: Option<String>,
+    pub meta: serde_json::Map<String, serde_json::Value>,
 }
 
 impl Default for RedisContext {
@@ -17,8 +16,18 @@ impl Default for RedisContext {
         Self {
             max_attempts: 5,
             lock_by: None,
-            run_at: None,
+            meta: serde_json::Map::new(),
         }
+    }
+}
+
+impl<T: Serialize + DeserializeOwned> MetadataExt<T> for RedisContext {
+    type Error = serde_json::Error;
+    fn extract(&self) -> Result<T, serde_json::Error> {
+        self.meta.extract()
+    }
+    fn inject(&mut self, value: T) -> Result<(), serde_json::Error> {
+        self.meta.inject(value)
     }
 }
 

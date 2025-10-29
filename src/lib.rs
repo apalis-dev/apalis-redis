@@ -73,14 +73,14 @@ use redis::{
     AsyncConnectionConfig, Client, ErrorKind, PushInfo, Script, Value,
     aio::{ConnectionLike, MultiplexedConnection},
 };
-// mod expose;
-// mod storage;
+
 mod ack;
 mod config;
 mod context;
 mod fetcher;
-mod shared;
-mod sink;
+mod queries;
+pub mod shared;
+pub mod sink;
 
 pub use redis::{RedisError, aio::ConnectionManager};
 
@@ -97,6 +97,19 @@ pub struct RedisStorage<Args, Conn = ConnectionManager, C = JsonCodec<Vec<u8>>> 
     codec: PhantomData<C>,
     poller: Arc<Event>,
     sink: RedisSink<Args, C, Conn>,
+}
+
+impl<Args, Conn: Clone, Cdc: Clone> Clone for RedisStorage<Args, Conn, Cdc> {
+    fn clone(&self) -> Self {
+        Self {
+            conn: self.conn.clone(),
+            job_type: PhantomData,
+            config: self.config.clone(),
+            codec: PhantomData,
+            poller: self.poller.clone(),
+            sink: self.sink.clone(),
+        }
+    }
 }
 
 impl<T, Conn: Clone> RedisStorage<T, Conn, JsonCodec<Vec<u8>>> {
@@ -143,19 +156,22 @@ impl<T, Conn: Clone> RedisStorage<T, Conn, JsonCodec<Vec<u8>>> {
     }
 }
 
-impl<Args, Conn, C> Backend<Args> for RedisStorage<Args, Conn, C>
+impl<Args, Conn, C> Backend for RedisStorage<Args, Conn, C>
 where
     Args: Unpin + Send + Sync + 'static,
     Conn: Clone + ConnectionLike + Send + Sync + 'static,
     C: Codec<Args, Compact = Vec<u8>> + Unpin + Send + 'static,
     C::Error: Into<BoxDynError>,
 {
+    type Args = Args;
     type Stream = TaskStream<Task<Args, RedisContext, Ulid>, RedisError>;
 
     type IdType = Ulid;
 
     type Error = RedisError;
     type Layer = AcknowledgeLayer<RedisAck<Conn, C>>;
+
+    type Compact = Vec<u8>;
 
     type Codec = C;
 
@@ -170,8 +186,8 @@ where
         let worker_id = worker.name().to_owned();
         let conn = self.conn.clone();
 
-        let stream = stream::unfold(
-            (keep_alive, worker_id, conn, config),
+        let keep_alive = stream::unfold(
+            (keep_alive, worker_id.clone(), conn.clone(), config.clone()),
             |(keep_alive, worker_id, mut conn, config)| async move {
                 apalis_core::timer::sleep(keep_alive).await;
                 let register_consumer =
@@ -190,7 +206,32 @@ where
                 Some((res, (keep_alive, worker_id, conn, config)))
             },
         );
-        stream.boxed()
+
+        let enqueue_scheduled = stream::unfold(
+            (worker_id, conn, config),
+            |(worker_id, mut conn, config)| async move {
+                apalis_core::timer::sleep(*config.get_enqueue_scheduled()).await;
+                let scheduled_jobs_set = config.scheduled_jobs_set();
+                let active_jobs_list = config.active_jobs_list();
+                let signal_list = config.signal_list();
+                let now: i64 = Utc::now().timestamp();
+                let enqueue_jobs =
+                    redis::Script::new(include_str!("../lua/enqueue_scheduled_jobs.lua"));
+                let res: Result<usize, _> = enqueue_jobs
+                    .key(scheduled_jobs_set)
+                    .key(active_jobs_list)
+                    .key(signal_list)
+                    .arg(now)
+                    .arg(100)
+                    .invoke_async(&mut conn)
+                    .await;
+                match res {
+                    Ok(count) => Some((Ok(()), (worker_id, conn, config))),
+                    Err(e) => None,
+                }
+            },
+        );
+        stream::select(keep_alive, enqueue_scheduled).boxed()
     }
     fn middleware(&self) -> Self::Layer {
         AcknowledgeLayer::new(RedisAck::new(&self.conn, &self.config))
@@ -261,10 +302,15 @@ fn build_error(message: &str) -> RedisError {
 
 #[cfg(test)]
 mod tests {
-    use std::{fmt::Debug, ops::Deref, sync::atomic::AtomicUsize, time::Duration};
-
+    use apalis_workflow::{TaskFlowSink, WorkFlow};
     use futures::{SinkExt, TryFutureExt, future::ready};
     use redis::{Client, ConnectionInfo, IntoConnectionInfo, parse_redis_url};
+    use std::{
+        fmt::Debug,
+        ops::{Deref, Range},
+        sync::atomic::AtomicUsize,
+        time::Duration,
+    };
 
     use apalis_core::{
         backend::{TaskSink, memory::MemoryStorage},
@@ -297,8 +343,7 @@ mod tests {
                 .set_buffer_size(100),
         );
         for i in 0..ITEMS {
-            let req = TaskBuilder::new(i).build();
-            backend.send(req).await.unwrap();
+            backend.push(i).await.unwrap();
         }
 
         async fn task(
@@ -351,7 +396,7 @@ mod tests {
 
         for i in 0..ITEMS {
             let req = TaskBuilder::new(i).build();
-            backend.send(req).await.unwrap();
+            backend.push_task(req).await.unwrap();
         }
 
         async fn task(
@@ -370,8 +415,13 @@ mod tests {
 
         let worker = WorkerBuilder::new("rango-tango")
             .backend(backend)
+            // .map_future(|f| async {
+            //     let fut = tokio::spawn(f);
+            //     let fut = fut.await?;
+            //     fut
+            // })
             .on_event(|ctx, ev| {
-                // println!("CTX {:?}, On Event = {:?}", ctx.get_service(), ev);
+                println!("CTX {:?}, On Event = {:?}", ctx.name(), ev);
             })
             .build(task);
         worker.run().await.unwrap();
@@ -439,63 +489,65 @@ mod tests {
             .unwrap();
     }
 
-    // #[tokio::test]
-    // async fn stepped_workflow() {
-    //     async fn task1(job: u32) -> Result<GoTo<()>, BoxDynError> {
-    //         println!("{job}");
-    //         Ok(GoTo::Next(()))
-    //     }
+    #[tokio::test]
+    async fn workflow() {
+        async fn task1(job: u32) -> Result<Vec<u32>, BoxDynError> {
+            Ok((job..2).collect())
+        }
 
-    //     async fn task2(_: ()) -> Result<GoTo<usize>, BoxDynError> {
-    //         Ok(GoTo::Next(1))
-    //     }
+        async fn task2(_: Vec<u32>) -> Result<usize, BoxDynError> {
+            Ok(42)
+        }
 
-    //     async fn task3(
-    //         job: usize,
-    //         wrk: WorkerContext,
-    //         ctx: Data<Parts<RedisContext>>,
-    //     ) -> Result<GoTo<()>, io::Error> {
-    //         wrk.stop().unwrap();
-    //         println!("{job}");
-    //         dbg!(&ctx);
-    //         Ok(GoTo::Done(()))
-    //     }
+        async fn task3(job: usize, wrk: WorkerContext, ctx: RedisContext) -> Result<(), io::Error> {
+            wrk.stop().unwrap();
+            println!("{job}");
+            dbg!(&ctx);
+            Ok(())
+        }
 
-    //     async fn recover<Req: Debug>(req: Req) -> Result<(), BoxDynError> {
-    //         println!("Recovering request: {req:?}");
-    //         Err("Unable to recover".into())
-    //     }
+        let steps = WorkFlow::new("redis_stepped_workflow")
+            .then(task1)
+            .delay_for(Duration::from_millis(1400))
+            .filter_map(|res: u32| async move { if res == 42 { Some(res) } else { None } })
+            .then(task2)
+            .then(task3);
 
-    //     let steps = StepBuilder::new()
-    //         .step_fn(task1)
-    //         .step_fn(task2)
-    //         .step_fn(task3)
-    //         .fallback(recover);
+        // assert_stepped::<
+        //     WorkFlow<
+        //         u32,
+        //         (),
+        //         RedisStorage<Vec<u8>>,
+        //         JsonCodec<Vec<u8>>,
+        //         Vec<u8>,
+        //         RedisContext,
+        //         Ulid,
+        //     >,
+        // >(&steps);
 
-    //     // assert_stepped::<RedisStorage<StepRequest<Vec<u8>>>, _, _, _, _, _, _, _>(&steps);
+        let client = Client::open("redis://127.0.0.1/").unwrap();
+        let conn = client.get_connection_manager().await.unwrap();
+        let mut backend: RedisStorage<Vec<u8>> = RedisStorage::new_with_config(
+            conn,
+            RedisConfig::default().set_namespace("redis_workflow"),
+        );
 
-    //     let client = Client::open("redis://127.0.0.1/").unwrap();
-    //     let conn = client.get_connection_manager().await.unwrap();
-    //     let backend = RedisStorage::new_with_config(
-    //         conn,
-    //         RedisConfig::default().set_namespace("redis_workflow"),
-    //     );
-    //     let mut sink = backend.sink();
-    //     let _res = sink.push_start(0u32).await.unwrap();
+        apalis_core::backend::WeakTaskSink::push(&mut backend, 1u32)
+            .await
+            .unwrap();
 
-    //     let worker = WorkerBuilder::new("rango-tango")
-    //         .backend(backend)
-    //         .on_event(|ctx, ev| {
-    //             use apalis_core::worker::event::Event;
-    //             println!("Worker {:?}, On Event = {:?}", ctx.name(), ev);
-    //             if matches!(ev, Event::Error(_)) {
-    //                 ctx.stop().unwrap();
-    //             }
-    //         })
-    //         .build(steps);
-    //     let mut event_stream = worker.stream();
-    //     while let Some(Ok(ev)) = event_stream.next().await {
-    //         println!("On Event = {:?}", ev);
-    //     }
-    // }
+        let worker = WorkerBuilder::new("rango-tango")
+            .backend(backend)
+            .on_event(|ctx, ev| {
+                use apalis_core::worker::event::Event;
+                println!("Worker {:?}, On Event = {:?}", ctx.name(), ev);
+                if matches!(ev, Event::Error(_)) {
+                    ctx.stop().unwrap();
+                }
+            })
+            .build(steps);
+        worker.run().await.unwrap();
+    }
+
+    // fn assert_stepped<T>(steps: &T) {}
 }

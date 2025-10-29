@@ -28,7 +28,7 @@ impl Default for RedisConfig {
             poll_interval: Duration::from_millis(100),
             buffer_size: 10,
             keep_alive: Duration::from_secs(30),
-            enqueue_scheduled: Duration::from_secs(30),
+            enqueue_scheduled: Duration::from_secs(1),
             reenqueue_orphaned_after: Duration::from_secs(300),
             namespace: String::from("apalis_redis"),
         }

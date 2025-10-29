@@ -3,7 +3,7 @@ use std::str::FromStr;
 use apalis_core::{
     backend::codec::Codec,
     error::BoxDynError,
-    task::{attempt::Attempt, status::Status, task_id::TaskId, Task},
+    task::{Task, attempt::Attempt, status::Status, task_id::TaskId},
     worker::context::WorkerContext,
 };
 use redis::{RedisError, Value, aio::ConnectionLike};
@@ -48,11 +48,27 @@ where
                     build_error(&format!("Expected 2 items, found {}", c.len()))
                 })?)?;
                 for task in tasks {
-                    let args: Args =
-                        C::decode(&task.data).map_err(|e| build_error(&e.into().to_string()))?;
+                    let args =
+                        if std::any::TypeId::of::<Args>() == std::any::TypeId::of::<Vec<u8>>() {
+                            // SAFETY: We've verified that Args and CompactType are the same type.
+                            // We use ptr::read to move the value out without calling drop on self.job.
+                            // Then we use mem::forget to prevent self from being dropped (which would
+                            // try to drop self.job again, causing a double free).
+                            unsafe {
+                                let job_ptr = &task.data as *const Vec<u8> as *const Args;
+                                let args = std::ptr::read(job_ptr);
+                                std::mem::forget(task.data);
+                                args
+                            }
+                        } else {
+                            let args: Args = C::decode(&task.data)
+                                .map_err(|e| build_error(&e.into().to_string()))?;
+                            args
+                        };
                     let context = RedisContext {
                         max_attempts: task.max_attempts,
                         lock_by: Some(worker.name().to_owned()),
+                        meta: task.meta,
                         ..Default::default()
                     };
                     let task = Task::builder(args)
@@ -77,6 +93,7 @@ struct TaskWithMeta {
     pub max_attempts: u32,
     pub status: Status,
     pub task_id: TaskId<Ulid>,
+    pub meta: serde_json::Map<String, serde_json::Value>,
 }
 
 fn parse_u32(value: &Value, field: &str) -> Result<u32, RedisError> {
@@ -116,7 +133,7 @@ fn deserialize_with_meta(data: [redis::Value; 2]) -> Result<Vec<TaskWithMeta>, R
         };
 
         let meta_fields = match meta_val {
-            redis::Value::Array(fields) if fields.len() == 4 => fields,
+            redis::Value::Array(fields) => fields,
             _ => return Err(build_error("Invalid metadata format")),
         };
 
@@ -131,10 +148,27 @@ fn deserialize_with_meta(data: [redis::Value; 2]) -> Result<Vec<TaskWithMeta>, R
 
         let task_id = TaskId::from_str(str_from_val(&meta_fields[0], "task_id")?)
             .map_err(|e| build_error(&e.to_string()))?;
-        let attempts = parse_u32(&meta_fields[1], "attempts")?;
-        let max_attempts = parse_u32(&meta_fields[2], "max_attempts")?;
-        let status = Status::from_str(str_from_val(&meta_fields[3], "status")?)
+        let attempts = parse_u32(&meta_fields[2], "attempts")?;
+        let max_attempts = parse_u32(&meta_fields[4], "max_attempts")?;
+        let status = Status::from_str(str_from_val(&meta_fields[6], "status")?)
             .map_err(|e| build_error(&e.to_string()))?;
+
+        let meta = meta_fields[7..]
+            .chunks(2)
+            .filter_map(|chunk| {
+                if chunk.len() == 2 {
+                    Some((
+                        str_from_val(&chunk[0], "meta key").ok()?,
+                        str_from_val(&chunk[1], "meta value").ok()?,
+                    ))
+                } else {
+                    None
+                }
+            })
+            .try_fold(serde_json::Map::new(), |mut acc, (key, val)| {
+                acc.insert(key.to_owned(), serde_json::from_str(&val).unwrap_or_default());
+                Ok::<_, RedisError>(acc)
+            })?;
 
         result.push(TaskWithMeta {
             task_id,
@@ -142,6 +176,7 @@ fn deserialize_with_meta(data: [redis::Value; 2]) -> Result<Vec<TaskWithMeta>, R
             attempts,
             max_attempts,
             status,
+            meta,
         });
     }
 
