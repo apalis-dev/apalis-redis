@@ -1,12 +1,11 @@
 use apalis_core::backend::codec::Codec;
 use apalis_core::backend::{TaskResult, WaitForCompletion};
 use apalis_core::error::BoxDynError;
-use apalis_core::task::status::{Status, StatusError};
-use apalis_core::task::task_id::{RandomId, TaskId};
+use apalis_core::task::status::Status;
+use apalis_core::task::task_id::TaskId;
 use apalis_core::timer::sleep;
 use futures::stream::{self, BoxStream, StreamExt};
 use redis::aio::ConnectionLike;
-use redis::{ErrorKind, RedisError};
 use std::collections::HashSet;
 use std::str::FromStr;
 use std::time::Duration;
@@ -22,7 +21,8 @@ where
         + Send
         + Sync
         + Unpin
-        + 'static + Clone,
+        + 'static
+        + Clone,
     Err: Into<BoxDynError> + Send + 'static,
     Res: Send + 'static,
 {
@@ -35,7 +35,7 @@ where
         let storage = self.clone();
         let pending_ids: HashSet<_> = task_ids.into_iter().map(|id| id.to_string()).collect();
 
-        let stream = stream::unfold(
+        stream::unfold(
             (storage, pending_ids),
             |(storage, mut pending_ids)| async move {
                 if pending_ids.is_empty() {
@@ -61,20 +61,21 @@ where
                                 pending_ids.remove(&result.task_id().to_string());
                             }
 
-                            Some((results, (storage, pending_ids)))
+                            Some((
+                                results.into_iter().map(Ok).collect(),
+                                (storage, pending_ids),
+                            ))
                         }
                     }
                     Err(e) => {
                         // Emit error and terminate stream
-                        None
+                        Some((vec![Err(e)], (storage, pending_ids)))
                     }
                 }
             },
         )
-        .flat_map(|batch| stream::iter(batch.into_iter().map(Ok)))
-        .boxed();
-
-        stream
+        .flat_map(stream::iter)
+        .boxed()
     }
 
     async fn check_status(

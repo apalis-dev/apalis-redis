@@ -12,6 +12,8 @@ use redis::{
 
 use crate::{RedisStorage, config::RedisConfig, sink::RedisSink};
 
+/// A shared Redis storage that can create multiple RedisStorage instances.
+#[derive(Debug, Clone)]
 pub struct SharedRedisStorage {
     conn: MultiplexedConnection,
     registry: Arc<Mutex<HashMap<String, Arc<Event>>>>,
@@ -33,6 +35,7 @@ fn parse_channel_info(push: &PushInfo) -> Option<(String, String, String)> {
 }
 
 impl SharedRedisStorage {
+    /// Creates a new SharedRedisStorage with the given Redis client.
     pub async fn new(client: Client) -> Result<Self, RedisError> {
         let registry: Arc<Mutex<HashMap<String, Arc<Event>>>> =
             Arc::new(Mutex::new(HashMap::new()));

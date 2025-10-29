@@ -33,53 +33,34 @@
 //! }
 //! ```
 
-use std::{
-    any::type_name,
-    collections::HashMap,
-    convert::Infallible,
-    future::Future,
-    io,
-    marker::PhantomData,
-    pin::Pin,
-    str::FromStr,
-    sync::{Arc, LazyLock, Mutex, OnceLock},
-    task::{Context, Poll},
-    time::{Duration, SystemTime},
-    usize,
-};
+use std::{any::type_name, io, marker::PhantomData, sync::Arc};
 
 use apalis_core::{
     backend::{
-        Backend, TaskSink, TaskStream,
+        Backend, TaskStream,
         codec::{Codec, json::JsonCodec},
-        shared::MakeShared,
     },
     error::BoxDynError,
-    task::{Parts, Task, attempt::Attempt, status::Status, task_id::TaskId},
-    task_fn::from_request::FromRequest,
-    worker::{
-        context::WorkerContext,
-        ext::ack::{Acknowledge, AcknowledgeLayer},
-    },
+    task::Task,
+    worker::{context::WorkerContext, ext::ack::AcknowledgeLayer},
 };
 use chrono::Utc;
 use event_listener::Event;
 use futures::{
-    FutureExt, Sink, StreamExt, TryFuture,
-    future::{BoxFuture, select},
+    FutureExt, StreamExt,
+    future::select,
     stream::{self, BoxStream},
 };
-use redis::{
-    AsyncConnectionConfig, Client, ErrorKind, PushInfo, Script, Value,
-    aio::{ConnectionLike, MultiplexedConnection},
-};
+use redis::aio::ConnectionLike;
 
 mod ack;
 mod config;
 mod context;
 mod fetcher;
 mod queries;
+/// Shared utilities for Redis storage.
 pub mod shared;
+/// Redis sink module.
 pub mod sink;
 
 pub use redis::{RedisError, aio::ConnectionManager};
@@ -90,6 +71,7 @@ use crate::{ack::RedisAck, config::RedisConfig, context::RedisContext, sink::Red
 
 /// Represents a [Backend] that uses Redis for storage.
 #[doc = "# Feature Support\n"]
+#[derive(Debug)]
 pub struct RedisStorage<Args, Conn = ConnectionManager, C = JsonCodec<Vec<u8>>> {
     conn: Conn,
     job_type: PhantomData<Args>,
@@ -226,8 +208,8 @@ where
                     .invoke_async(&mut conn)
                     .await;
                 match res {
-                    Ok(count) => Some((Ok(()), (worker_id, conn, config))),
-                    Err(e) => None,
+                    Ok(_) => Some((Ok(()), (worker_id, conn, config))),
+                    Err(e) => Some((Err(e), (worker_id, conn, config))),
                 }
             },
         );
@@ -302,29 +284,16 @@ fn build_error(message: &str) -> RedisError {
 
 #[cfg(test)]
 mod tests {
-    use apalis_workflow::{TaskFlowSink, WorkFlow};
-    use futures::{SinkExt, TryFutureExt, future::ready};
-    use redis::{Client, ConnectionInfo, IntoConnectionInfo, parse_redis_url};
-    use std::{
-        fmt::Debug,
-        ops::{Deref, Range},
-        sync::atomic::AtomicUsize,
-        time::Duration,
-    };
+    use apalis_workflow::WorkFlow;
+
+    use redis::Client;
+    use std::time::Duration;
 
     use apalis_core::{
-        backend::{TaskSink, memory::MemoryStorage},
-        task::{builder::TaskBuilder, data::Data},
-        task_fn::{self, TaskFn},
-        worker::{
-            builder::WorkerBuilder,
-            ext::{
-                ack::AcknowledgementExt, circuit_breaker::CircuitBreaker,
-                event_listener::EventListenerExt, long_running::LongRunningExt,
-            },
-        },
+        backend::{TaskSink, shared::MakeShared},
+        task::builder::TaskBuilder,
+        worker::{builder::WorkerBuilder, ext::event_listener::EventListenerExt},
     };
-    use tokio::task::JoinError;
 
     use crate::shared::SharedRedisStorage;
 
@@ -346,13 +315,9 @@ mod tests {
             backend.push(i).await.unwrap();
         }
 
-        async fn task(
-            task: u32,
-            meta: RedisContext,
-            wrk: WorkerContext,
-        ) -> Result<(), BoxDynError> {
+        async fn task(task: u32, ctx: RedisContext, wrk: WorkerContext) -> Result<(), BoxDynError> {
             let handle = std::thread::current();
-            // println!("{task:?}, {ctx:?}, Thread: {:?}", handle.id());
+            println!("{task:?}, {ctx:?}, Thread: {:?}", handle.id());
             if task == ITEMS - 1 {
                 wrk.stop().unwrap();
                 return Err("Worker stopped!")?;
@@ -363,7 +328,7 @@ mod tests {
         let worker = WorkerBuilder::new("rango-tango")
             .backend(backend)
             .on_event(|ctx, ev| {
-                // println!("CTX {:?}, On Event = {:?}", ctx.get_service(), ev);
+                println!("CTX {:?}, On Event = {:?}", ctx.name(), ev);
             })
             .build(task);
         worker.run().await.unwrap();
@@ -415,11 +380,6 @@ mod tests {
 
         let worker = WorkerBuilder::new("rango-tango")
             .backend(backend)
-            // .map_future(|f| async {
-            //     let fut = tokio::spawn(f);
-            //     let fut = fut.await?;
-            //     fut
-            // })
             .on_event(|ctx, ev| {
                 println!("CTX {:?}, On Event = {:?}", ctx.name(), ev);
             })

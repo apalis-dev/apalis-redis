@@ -5,29 +5,33 @@ use std::{
     task::{Context, Poll},
 };
 
-use apalis_core::{backend::codec::Codec, task::Task};
+use apalis_core::task::Task;
 use chrono::Utc;
 use futures::{
     FutureExt, Sink,
     future::{BoxFuture, Shared},
 };
 use redis::{
-    ErrorKind, RedisError, Script,
+    RedisError, Script,
     aio::{ConnectionLike, ConnectionManager},
 };
-use serde_json::ser;
 use ulid::Ulid;
 
 use crate::{RedisStorage, build_error, config::RedisConfig, context::RedisContext};
 
+type SinkFuture = Shared<BoxFuture<'static, Result<(u32, u32), Arc<RedisError>>>>;
+
+/// A Redis sink that batches task pushes to Redis.
+#[derive(Debug)]
 pub struct RedisSink<Args, Encode, Conn = ConnectionManager> {
     _args: PhantomData<(Args, Encode)>,
     config: RedisConfig,
     pending: Vec<Task<Vec<u8>, RedisContext, Ulid>>,
     conn: Conn,
-    invoke_future: Option<Shared<BoxFuture<'static, Result<(u32, u32), Arc<RedisError>>>>>,
+    invoke_future: Option<SinkFuture>,
 }
 impl<Args, Conn: Clone, Encode> RedisSink<Args, Encode, Conn> {
+    /// Creates a new Redis sink.
     pub fn new(conn: &Conn, config: &RedisConfig) -> Self {
         Self {
             conn: conn.clone(),
@@ -54,6 +58,7 @@ impl<Args, Conn: Clone, Cdc: Clone> Clone for RedisSink<Args, Cdc, Conn> {
 static BATCH_PUSH_SCRIPT: LazyLock<Script> =
     LazyLock::new(|| Script::new(include_str!("../lua/batch_push.lua")));
 
+/// Pushes tasks to Redis using a batch Lua script.
 pub async fn push_tasks<Conn: ConnectionLike>(
     tasks: Vec<Task<Vec<u8>, RedisContext, Ulid>>,
     config: RedisConfig,
@@ -96,7 +101,7 @@ pub async fn push_tasks<Conn: ConnectionLike>(
     script
         .invoke_async::<(u32, u32)>(&mut conn)
         .await
-        .map_err(|e| Arc::new(e))
+        .map_err(Arc::new)
 }
 
 impl<Args, Cdc, Conn> Sink<Task<Vec<u8>, RedisContext, Ulid>> for RedisStorage<Args, Conn, Cdc>
@@ -136,7 +141,7 @@ where
             match fut.poll_unpin(cx) {
                 Poll::Pending => Poll::Pending,
                 Poll::Ready(result) => {
-                    // ✅ Clear the future after it completes
+                    // Clear the future after it completes
                     this.sink.invoke_future = None;
 
                     // Propagate the Redis result

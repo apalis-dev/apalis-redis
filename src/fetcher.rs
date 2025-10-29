@@ -36,7 +36,7 @@ where
             .key(&inflight_set)
             .key(&job_data_hash)
             .key(&signal_list)
-            .key(&config.job_meta_hash())
+            .key(config.job_meta_hash())
             .arg(config.get_buffer_size()) // No of jobs to fetch
             .arg(&inflight_set)
             .invoke_async::<Vec<Value>>(&mut *conn)
@@ -69,7 +69,6 @@ where
                         max_attempts: task.max_attempts,
                         lock_by: Some(worker.name().to_owned()),
                         meta: task.meta,
-                        ..Default::default()
                     };
                     let task = Task::builder(args)
                         .with_task_id(task.task_id)
@@ -100,11 +99,11 @@ fn parse_u32(value: &Value, field: &str) -> Result<u32, RedisError> {
     match value {
         Value::BulkString(bytes) => {
             let s = std::str::from_utf8(bytes)
-                .map_err(|_| build_error(&format!("{} not UTF-8", field)))?;
+                .map_err(|_| build_error(&format!("{field} not UTF-8")))?;
             s.parse::<u32>()
-                .map_err(|_| build_error(&format!("{} not u32", field)))
+                .map_err(|_| build_error(&format!("{field} not u32")))
         }
-        _ => Err(build_error(&format!("{} not bulk string", field))),
+        _ => Err(build_error(&format!("{field} not bulk string"))),
     }
 }
 
@@ -140,9 +139,9 @@ fn deserialize_with_meta(data: [redis::Value; 2]) -> Result<Vec<TaskWithMeta>, R
         fn str_from_val<'a>(val: &'a redis::Value, field: &'a str) -> Result<&'a str, RedisError> {
             match val {
                 redis::Value::BulkString(bytes) => {
-                    str::from_utf8(bytes).map_err(|_| build_error(&format!("{} not UTF-8", field)))
+                    str::from_utf8(bytes).map_err(|_| build_error(&format!("{field} not UTF-8")))
                 }
-                _ => Err(build_error(&format!("{} not bulk string", field))),
+                _ => Err(build_error(&format!("{field} not bulk string"))),
             }
         }
 
@@ -166,7 +165,10 @@ fn deserialize_with_meta(data: [redis::Value; 2]) -> Result<Vec<TaskWithMeta>, R
                 }
             })
             .try_fold(serde_json::Map::new(), |mut acc, (key, val)| {
-                acc.insert(key.to_owned(), serde_json::from_str(&val).unwrap_or_default());
+                acc.insert(
+                    key.to_owned(),
+                    serde_json::from_str(val).unwrap_or_default(),
+                );
                 Ok::<_, RedisError>(acc)
             })?;
 

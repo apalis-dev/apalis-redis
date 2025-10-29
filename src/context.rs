@@ -1,4 +1,4 @@
-use std::{convert::Infallible, time::SystemTime};
+use std::convert::Infallible;
 use apalis_core::{task::{Task, metadata::MetadataExt}, task_fn::FromRequest};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use ulid::Ulid;

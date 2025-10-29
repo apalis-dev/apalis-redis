@@ -16,6 +16,8 @@ use ulid::Ulid;
 
 use crate::{build_error, config::RedisConfig, context::RedisContext};
 
+/// A Redis acknowledgment Layer
+#[derive(Debug)]
 pub struct RedisAck<Conn = ConnectionManager, Encode = JsonCodec<Vec<u8>>> {
     conn: Conn,
     config: RedisConfig,
@@ -70,8 +72,8 @@ where
         let res = res.as_ref().map_err(|e| e.to_string().bytes().collect());
 
         let result_data = match res {
-            Ok(res) => Encode::encode(&res)
-                .map_err(|e| build_error("could not encode result"))
+            Ok(res) => Encode::encode(res)
+                .map_err(|_| build_error("could not encode result"))
                 .unwrap(),
             Err(e) => e,
         };
