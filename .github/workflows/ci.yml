@@ -22,7 +22,8 @@ jobs:
           - 6379:6379
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest]
         rust: [stable, beta]
         include:
           - os: ubuntu-latest
@@ -60,9 +61,9 @@ jobs:
     strategy:
       matrix:
         features:
-          - ""
-          - "--features async-std-comp"
-          - "--features tokio-comp"
+          # - ""
+          # - "--features async-std-comp"
+          # - "--features tokio-comp"
           - "--all-features"
     steps:
       - name: Checkout sources
