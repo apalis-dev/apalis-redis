@@ -7,8 +7,9 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 //! apalis storage using Redis as a backend
 //! ```rust,no_run
-//! use apalis::prelude::*;
-//! use apalis_redis::{RedisStorage, Config};
+//! use apalis_redis::{RedisStorage, RedisConfig as Config};
+//! # use apalis_core::worker::builder::WorkerBuilder;
+//! # use apalis_core::error::BoxDynError;
 //! use serde::{Deserialize, Serialize};
 //!
 //! #[derive(Debug, Deserialize, Serialize)]
@@ -16,7 +17,7 @@
 //!     to: String,
 //! }
 //!
-//! async fn send_email(job: Email) -> Result<(), Error> {
+//! async fn send_email(job: Email) -> Result<(), BoxDynError> {
 //!     Ok(())
 //! }
 //!
@@ -51,7 +52,7 @@ use futures::{
     future::select,
     stream::{self, BoxStream},
 };
-use redis::aio::ConnectionLike;
+use redis::{Client, IntoConnectionInfo, aio::ConnectionLike};
 
 mod ack;
 mod config;
@@ -67,7 +68,7 @@ pub use redis::{RedisError, aio::ConnectionManager};
 
 use ulid::Ulid;
 
-use crate::{ack::RedisAck, config::RedisConfig, context::RedisContext, sink::RedisSink};
+pub use crate::{ack::RedisAck, config::RedisConfig, context::RedisContext, sink::RedisSink};
 
 /// Represents a [Backend] that uses Redis for storage.
 #[doc = "# Feature Support\n"]
@@ -278,6 +279,13 @@ where
     }
 }
 
+/// Shorthand to create a client and connect
+pub async fn connect<S: IntoConnectionInfo>(redis: S) -> Result<ConnectionManager, RedisError> {
+    let client = Client::open(redis.into_connection_info()?)?;
+    let conn = client.get_connection_manager().await?;
+    Ok(conn)
+}
+
 fn build_error(message: &str) -> RedisError {
     RedisError::from(io::Error::new(io::ErrorKind::InvalidData, message))
 }
@@ -287,7 +295,7 @@ mod tests {
     use apalis_workflow::WorkFlow;
 
     use redis::Client;
-    use std::time::Duration;
+    use std::{env, time::Duration};
 
     use apalis_core::{
         backend::{TaskSink, shared::MakeShared},
@@ -303,7 +311,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn basic_worker() {
-        let client = Client::open("redis://127.0.0.1/").unwrap();
+        let client = Client::open(env::var("REDIS_URL").unwrap()).unwrap();
         let conn = client.get_connection_manager().await.unwrap();
         let mut backend = RedisStorage::new_with_config(
             conn,
@@ -350,13 +358,11 @@ mod tests {
             }
         }
 
-        let client = Client::open("redis://127.0.0.1/").unwrap();
+        let client = Client::open(env::var("REDIS_URL").unwrap()).unwrap();
         let conn = client.get_connection_manager().await.unwrap();
         let mut backend = RedisStorage::new_with_codec::<Bincode>(
             conn,
-            RedisConfig::default()
-                .set_namespace("redis_bincode_worker")
-                .set_buffer_size(100),
+            RedisConfig::new("bincode-queue").set_buffer_size(100),
         );
 
         for i in 0..ITEMS {
@@ -375,7 +381,7 @@ mod tests {
                 wrk.stop().unwrap();
                 return Err("Worker stopped!")?;
             }
-            Ok("Worrker".to_owned())
+            Ok("Worker".to_owned())
         }
 
         let worker = WorkerBuilder::new("rango-tango")
@@ -485,7 +491,7 @@ mod tests {
         //     >,
         // >(&steps);
 
-        let client = Client::open("redis://127.0.0.1/").unwrap();
+        let client = Client::open(env::var("REDIS_URL").unwrap()).unwrap();
         let conn = client.get_connection_manager().await.unwrap();
         let mut backend: RedisStorage<Vec<u8>> = RedisStorage::new_with_config(
             conn,

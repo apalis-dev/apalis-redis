@@ -9,8 +9,11 @@ use ulid::Ulid;
 /// The context for a redis storage job
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RedisContext {
+    /// The maximum number of attempts for the task
     pub max_attempts: u32,
+    /// The worker that has locked the task, if any
     pub lock_by: Option<String>,
+    /// Additional metadata associated with the task
     pub meta: serde_json::Map<String, serde_json::Value>,
 }
 

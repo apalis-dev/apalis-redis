@@ -27,12 +27,7 @@ use std::num::TryFromIntError;
 use std::time::SystemTime;
 use std::{marker::PhantomData, time::Duration};
 
-/// Shorthand to create a client and connect
-pub async fn connect<S: IntoConnectionInfo>(redis: S) -> Result<ConnectionManager, RedisError> {
-    let client = Client::open(redis.into_connection_info()?)?;
-    let conn = client.get_connection_manager().await?;
-    Ok(conn)
-}
+
 
 const ACTIVE_JOBS_LIST: &str = "{queue}:active";
 const CONSUMERS_SET: &str = "{queue}:consumers";
