@@ -1,6 +1,9 @@
-use std::convert::Infallible;
-use apalis_core::{task::{Task, metadata::MetadataExt}, task_fn::FromRequest};
+use apalis_core::{
+    task::{Task, metadata::MetadataExt},
+    task_fn::FromRequest,
+};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use std::convert::Infallible;
 use ulid::Ulid;
 
 /// The context for a redis storage job
