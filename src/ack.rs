@@ -24,6 +24,7 @@ pub struct RedisAck<Conn = ConnectionManager, Encode = JsonCodec<Vec<u8>>> {
     _codec: PhantomData<Encode>,
 }
 impl<Conn: Clone, Encode> RedisAck<Conn, Encode> {
+    /// Creates a new Redis acknowledgment layer.
     pub fn new(conn: &Conn, config: &RedisConfig) -> Self {
         Self {
             conn: conn.clone(),

@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
@@ -14,6 +14,13 @@ jobs:
   test:
     name: Test Suite
     runs-on: ${{ matrix.os }}
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+    env:
+      REDIS_URL: redis://127.0.0.1/
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
