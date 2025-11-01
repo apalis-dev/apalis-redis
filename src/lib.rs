@@ -68,7 +68,12 @@ pub use redis::{RedisError, aio::ConnectionManager};
 
 use ulid::Ulid;
 
-pub use crate::{ack::RedisAck, config::RedisConfig, context::RedisContext, sink::RedisSink};
+pub use crate::{
+    ack::RedisAck, config::RedisConfig, context::RedisContext, fetcher::*, sink::RedisSink,
+};
+
+/// A Redis task type alias
+pub type RedisTask<Args> = Task<Args, RedisContext, Ulid>;
 
 /// Represents a [Backend] that uses Redis for storage.
 #[doc = "# Feature Support\n"]
@@ -168,25 +173,36 @@ where
         let config = self.config.clone();
         let worker_id = worker.name().to_owned();
         let conn = self.conn.clone();
+        let service = worker.get_service().to_owned();
 
         let keep_alive = stream::unfold(
-            (keep_alive, worker_id.clone(), conn.clone(), config.clone()),
-            |(keep_alive, worker_id, mut conn, config)| async move {
+            (
+                keep_alive,
+                worker_id.clone(),
+                conn.clone(),
+                config.clone(),
+                service,
+            ),
+            |(keep_alive, worker_id, mut conn, config, service)| async move {
                 apalis_core::timer::sleep(keep_alive).await;
-                let register_consumer =
-                    redis::Script::new(include_str!("../lua/register_consumer.lua"));
+                let register_worker =
+                    redis::Script::new(include_str!("../lua/register_worker.lua"));
                 let inflight_set = format!("{}:{}", config.inflight_jobs_set(), worker_id);
-                let consumers_set = config.consumers_set();
+                let workers_set = config.workers_set();
 
                 let now: i64 = Utc::now().timestamp();
 
-                let res = register_consumer
-                    .key(consumers_set)
+                let res = register_worker
+                    .key(workers_set)
+                    .key("core::apalis::workers:metadata::")
                     .arg(now)
                     .arg(inflight_set)
+                    .arg(config.get_keep_alive().as_secs())
+                    .arg("RedisStorage")
+                    .arg(&service)
                     .invoke_async::<()>(&mut conn)
                     .await;
-                Some((res, (keep_alive, worker_id, conn, config)))
+                Some((res, (keep_alive, worker_id, conn, config, service)))
             },
         );
 
@@ -226,18 +242,23 @@ where
         let config = self.config.clone();
         let mut conn = self.conn.clone();
         let event_listener = self.poller.clone();
+        let service = worker.get_service().to_owned();
         let register = futures::stream::once(async move {
-            let register_consumer =
-                redis::Script::new(include_str!("../lua/register_consumer.lua"));
+            let register_worker =
+                redis::Script::new(include_str!("../lua/register_worker.lua"));
             let inflight_set = format!("{}:{}", config.inflight_jobs_set(), worker_id);
-            let consumers_set = config.consumers_set();
+            let workers_set = config.workers_set();
 
             let now: i64 = Utc::now().timestamp();
 
-            register_consumer
-                .key(consumers_set)
+            register_worker
+                .key(workers_set)
+                .key("core::apalis::workers:metadata::")
                 .arg(now)
                 .arg(inflight_set)
+                .arg(config.get_keep_alive().as_secs())
+                .arg("RedisStorage")
+                .arg(service)
                 .invoke_async::<()>(&mut conn)
                 .await?;
             Ok(None)
@@ -358,7 +379,7 @@ mod tests {
             }
         }
 
-        let client = Client::open(env::var("REDIS_URL").unwrap()).unwrap();
+        let client = Client::open("redis://127.0.0.1/").unwrap();
         let conn = client.get_connection_manager().await.unwrap();
         let mut backend = RedisStorage::new_with_codec::<Bincode>(
             conn,
@@ -475,7 +496,7 @@ mod tests {
         let steps = WorkFlow::new("redis_stepped_workflow")
             .then(task1)
             .delay_for(Duration::from_millis(1400))
-            .filter_map(|res: u32| async move { if res == 42 { Some(res) } else { None } })
+            // .filter_map(|res: u32| async move { if res == 42 { Some(res) } else { None } })
             .then(task2)
             .then(task3);
 

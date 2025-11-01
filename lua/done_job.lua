@@ -1,4 +1,4 @@
--- KEYS[1]: this consumer's inflight set
+-- KEYS[1]: this worker's inflight set
 -- KEYS[2]: the done jobs set
 -- KEYS[3]: the job data hash
 
@@ -8,7 +8,7 @@
 
 -- Returns: bool
 
--- Remove the job from this consumer's inflight set
+-- Remove the job from this worker's inflight set
 local removed = redis.call("srem", KEYS[1], ARGV[1])
 local ns = "::result"
 if removed == 1 then

@@ -1,4 +1,4 @@
--- KEYS[1]: this consumer's inflight set
+-- KEYS[1]: this worker's inflight set
 -- KEYS[2]: the done tasks set
 -- KEYS[3]: the dead tasks set
 -- KEYS[4]: the task meta hash

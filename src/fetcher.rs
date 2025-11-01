@@ -18,20 +18,21 @@ where
     C: Codec<Args, Compact = Vec<u8>>,
     C::Error: Into<BoxDynError>,
 {
-    pub(super) async fn fetch_next(
+    /// Fetches the next batch of tasks for the given worker.
+    pub async fn fetch_next(
         worker: &WorkerContext,
         config: &RedisConfig,
         conn: &mut Conn,
     ) -> Result<Vec<Task<Args, RedisContext, Ulid>>, RedisError> {
         let fetch_jobs = redis::Script::new(include_str!("../lua/get_jobs.lua"));
-        let consumers_set = config.consumers_set();
+        let workers_set = config.workers_set();
         let active_jobs_list = config.active_jobs_list();
         let job_data_hash = config.job_data_hash();
         let inflight_set = format!("{}:{}", config.inflight_jobs_set(), worker.name());
         let signal_list = config.signal_list();
 
         let result = fetch_jobs
-            .key(&consumers_set)
+            .key(&workers_set)
             .key(&active_jobs_list)
             .key(&inflight_set)
             .key(&job_data_hash)
@@ -44,38 +45,10 @@ where
         match result {
             Ok(jobs) => {
                 let mut processed = vec![];
-                let tasks = deserialize_with_meta(jobs.try_into().map_err(|c: Vec<Value>| {
-                    build_error(&format!("Expected 2 items, found {}", c.len()))
-                })?)?;
-                for task in tasks {
-                    let args =
-                        if std::any::TypeId::of::<Args>() == std::any::TypeId::of::<Vec<u8>>() {
-                            // SAFETY: We've verified that Args and CompactType are the same type.
-                            // We use ptr::read to move the value out without calling drop on self.job.
-                            // Then we use mem::forget to prevent self from being dropped (which would
-                            // try to drop self.job again, causing a double free).
-                            unsafe {
-                                let job_ptr = &task.data as *const Vec<u8> as *const Args;
-                                let args = std::ptr::read(job_ptr);
-                                std::mem::forget(task.data);
-                                args
-                            }
-                        } else {
-                            let args: Args = C::decode(&task.data)
-                                .map_err(|e| build_error(&e.into().to_string()))?;
-                            args
-                        };
-                    let context = RedisContext {
-                        max_attempts: task.max_attempts,
-                        lock_by: Some(worker.name().to_owned()),
-                        meta: task.meta,
-                    };
-                    let task = Task::builder(args)
-                        .with_task_id(task.task_id)
-                        .with_status(task.status)
-                        .with_attempt(Attempt::new_with_value(task.attempts as usize))
-                        .with_ctx(context)
-                        .build();
+                let tasks = deserialize_with_meta(&jobs)?;
+                for unprocessed in tasks {
+                    let mut task = unprocessed.into_full_task::<Args, C>()?;
+                    task.parts.ctx.lock_by = Some(worker.name().to_string());
                     processed.push(task)
                 }
                 Ok(processed)
@@ -85,17 +58,92 @@ where
     }
 }
 
-#[derive(Debug)]
-struct TaskWithMeta {
-    pub data: Vec<u8>,
+/// A task structure that includes metadata.
+#[derive(Debug, Clone)]
+pub struct CompactTask<'a> {
+    /// The task data in its compact form.
+    pub data: &'a Vec<u8>,
+    /// The number of attempts made for this task.
     pub attempts: u32,
+    /// The maximum number of attempts allowed for this task.
     pub max_attempts: u32,
+    /// The current status of the task.
     pub status: Status,
+    /// The unique identifier for the task.
     pub task_id: TaskId<Ulid>,
+    /// Metadata associated with the task.
     pub meta: serde_json::Map<String, serde_json::Value>,
 }
 
-fn parse_u32(value: &Value, field: &str) -> Result<u32, RedisError> {
+impl CompactTask<'_> {
+    /// Converts the task data into a full Task with compact arguments.
+    pub fn into_full_compact(self) -> Result<Task<Vec<u8>, RedisContext, Ulid>, RedisError> {
+        let context = RedisContext {
+            max_attempts: self.max_attempts,
+            lock_by: None,
+            meta: self.meta,
+        };
+        let task = Task::builder(self.data.clone())
+            .with_task_id(self.task_id)
+            .with_status(self.status)
+            .with_attempt(Attempt::new_with_value(self.attempts as usize))
+            .with_ctx(context)
+            .build();
+        Ok(task)
+    }
+
+    /// Converts the task data into a full Task with decoded arguments.
+    pub fn into_full_task<Args: 'static, C>(
+        self,
+    ) -> Result<Task<Args, RedisContext, Ulid>, RedisError>
+    where
+        C: Codec<Args, Compact = Vec<u8>>,
+        C::Error: Into<BoxDynError>,
+    {
+        let args = if std::any::TypeId::of::<Args>() == std::any::TypeId::of::<Vec<u8>>() {
+            // SAFETY: We've verified that Args and CompactType are the same type.
+            // We use ptr::read to move the value out without calling drop on self.job.
+            // Then we use mem::forget to prevent self from being dropped (which would
+            // try to drop self.job again, causing a double free).
+            let ready = self.data.to_vec();
+            unsafe {
+                let job_ptr = &ready as *const Vec<u8> as *const Args;
+                let args = std::ptr::read(job_ptr);
+                std::mem::forget(ready);
+                args
+            }
+        } else {
+            let args: Args =
+                C::decode(self.data).map_err(|e| build_error(&e.into().to_string()))?;
+            args
+        };
+        let context = RedisContext {
+            max_attempts: self.max_attempts,
+            lock_by: None,
+            meta: self.meta,
+        };
+        let task = Task::builder(args)
+            .with_task_id(self.task_id)
+            .with_status(self.status)
+            .with_attempt(Attempt::new_with_value(self.attempts as usize))
+            .with_ctx(context)
+            .build();
+        Ok(task)
+    }
+}
+
+/// Extracts a &str from a redis::Value, returning an error if the value is not a bulk string.
+pub fn str_from_val<'a>(val: &'a redis::Value, field: &'a str) -> Result<&'a str, RedisError> {
+    match val {
+        redis::Value::BulkString(bytes) => {
+            str::from_utf8(bytes).map_err(|_| build_error(&format!("{field} not UTF-8")))
+        }
+        _ => Err(build_error(&format!("{field} not bulk string"))),
+    }
+}
+
+/// Parses a u32 from a redis::Value
+pub fn parse_u32(value: &Value, field: &str) -> Result<u32, RedisError> {
     match value {
         Value::BulkString(bytes) => {
             let s = std::str::from_utf8(bytes)
@@ -107,14 +155,19 @@ fn parse_u32(value: &Value, field: &str) -> Result<u32, RedisError> {
     }
 }
 
-fn deserialize_with_meta(data: [redis::Value; 2]) -> Result<Vec<TaskWithMeta>, RedisError> {
-    let [job_data_list, meta_list] = data;
-    let job_data_list = match job_data_list {
+/// Deserializes task data and metadata from Redis values.
+pub fn deserialize_with_meta<'a>(
+    data: &'a Vec<redis::Value>,
+) -> Result<Vec<CompactTask<'a>>, RedisError> {
+    if data.len() != 2 {
+        return Err(build_error("Expected two elements: job_data and metadata"));
+    }
+    let job_data_list = match &data[0] {
         redis::Value::Array(vals) => vals,
         _ => return Err(build_error("Expected job_data to be array")),
     };
 
-    let meta_list = match meta_list {
+    let meta_list = match &data[1] {
         redis::Value::Array(vals) => vals,
         _ => return Err(build_error("Expected metadata to be array")),
     };
@@ -135,15 +188,6 @@ fn deserialize_with_meta(data: [redis::Value; 2]) -> Result<Vec<TaskWithMeta>, R
             redis::Value::Array(fields) => fields,
             _ => return Err(build_error("Invalid metadata format")),
         };
-
-        fn str_from_val<'a>(val: &'a redis::Value, field: &'a str) -> Result<&'a str, RedisError> {
-            match val {
-                redis::Value::BulkString(bytes) => {
-                    str::from_utf8(bytes).map_err(|_| build_error(&format!("{field} not UTF-8")))
-                }
-                _ => Err(build_error(&format!("{field} not bulk string"))),
-            }
-        }
 
         let task_id = TaskId::from_str(str_from_val(&meta_fields[0], "task_id")?)
             .map_err(|e| build_error(&e.to_string()))?;
@@ -172,7 +216,7 @@ fn deserialize_with_meta(data: [redis::Value; 2]) -> Result<Vec<TaskWithMeta>, R
                 Ok::<_, RedisError>(acc)
             })?;
 
-        result.push(TaskWithMeta {
+        result.push(CompactTask {
             task_id,
             data,
             attempts,

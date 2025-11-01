@@ -1,16 +1,16 @@
--- KEYS[1]: the active consumers set
+-- KEYS[1]: the active workers set
 -- KEYS[2]: the active task list
--- KEYS[3]: this consumer's inflight set
+-- KEYS[3]: this worker's inflight set
 -- KEYS[4]: the task data hash
 -- KEYS[5]: the signal list
 -- KEYS[6]: the task meta prefix (e.g. "task_meta")
 -- ARGV[1]: the max number of tasks to get
--- ARGV[2]: this consumer's inflight set
+-- ARGV[2]: this worker's inflight set
 
--- Ensure the consumer is registered
+-- Ensure the worker is registered
 local registered = redis.call("zscore", KEYS[1], ARGV[2])
 if not registered then
-    error("consumer not registered")
+    error("worker not registered")
 end
 
 -- Get up to N task IDs from the active list
@@ -37,7 +37,7 @@ if count > 0 then
     end
 end
 
--- If fewer tasks were returned than requested, signal idle consumers
+-- If fewer tasks were returned than requested, signal idle workers
 if count < tonumber(ARGV[1]) then
     redis.call("del", KEYS[5])
 end

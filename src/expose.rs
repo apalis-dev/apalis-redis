@@ -28,7 +28,7 @@ where
 
         let results: Vec<usize> = stats_script
             .key(queue.active_jobs_list())
-            .key(queue.consumers_set())
+            .key(queue.workers_set())
             .key(queue.dead_jobs_set())
             .key(queue.failed_jobs_set())
             .key(queue.done_jobs_set())
@@ -75,10 +75,10 @@ where
                 Ok(jobs)
             }
             State::Running => {
-                let consumers_set = &queue.consumers_set();
+                let workers_set = &queue.workers_set();
                 let job_data_hash = &queue.job_data_hash();
                 let workers: Vec<String> = redis::cmd("ZRANGE")
-                    .arg(consumers_set)
+                    .arg(workers_set)
                     .arg("0")
                     .arg("-1")
                     .query_async(&mut conn)
@@ -184,10 +184,10 @@ where
     }
     async fn list_workers(&self) -> Result<Vec<SimpleWorker<WorkerState>>, redis::RedisError> {
         let queue = self.get_config();
-        let consumers_set = &queue.consumers_set();
+        let workers_set = &queue.workers_set();
         let mut conn = self.get_connection().clone();
         let workers: Vec<String> = redis::cmd("ZRANGE")
-            .arg(consumers_set)
+            .arg(workers_set)
             .arg("0")
             .arg("-1")
             .query_async(&mut conn)

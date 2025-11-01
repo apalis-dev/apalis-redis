@@ -30,7 +30,7 @@ use std::{marker::PhantomData, time::Duration};
 
 
 const ACTIVE_JOBS_LIST: &str = "{queue}:active";
-const CONSUMERS_SET: &str = "{queue}:consumers";
+const workerS_SET: &str = "{queue}:workers";
 const DEAD_JOBS_SET: &str = "{queue}:dead";
 const DONE_JOBS_SET: &str = "{queue}:done";
 const FAILED_JOBS_SET: &str = "{queue}:failed";
@@ -47,8 +47,8 @@ pub struct RedisQueueInfo {
     /// Key for the list of currently active jobs.
     pub active_jobs_list: String,
 
-    /// Key for the set of active consumers.
-    pub consumers_set: String,
+    /// Key for the set of active workers.
+    pub workers_set: String,
 
     /// Key for the set of jobs that are no longer retryable.
     pub dead_jobs_set: String,
@@ -68,7 +68,7 @@ pub struct RedisQueueInfo {
     /// Key for the set of jobs scheduled for future execution.
     pub scheduled_jobs_set: String,
 
-    /// Key for the list used for signaling and communication between consumers and producers.
+    /// Key for the list used for signaling and communication between workers and producers.
     pub signal_list: String,
 }
 
@@ -81,7 +81,7 @@ pub(crate) struct RedisScript {
     push_job: Script,
     reenqueue_active: Script,
     reenqueue_orphaned: Script,
-    register_consumer: Script,
+    register_worker: Script,
     retry_job: Script,
     schedule_job: Script,
     vacuum: Script,
@@ -229,13 +229,13 @@ impl Config {
         ACTIVE_JOBS_LIST.replace("{queue}", &self.namespace)
     }
 
-    /// Returns the Redis key for the set of consumers associated with the queue.
+    /// Returns the Redis key for the set of workers associated with the queue.
     /// The key is dynamically generated using the namespace of the queue.
     ///
     /// # Returns
-    /// A `String` representing the Redis key for the consumers set.
-    pub fn consumers_set(&self) -> String {
-        CONSUMERS_SET.replace("{queue}", &self.namespace)
+    /// A `String` representing the Redis key for the workers set.
+    pub fn workers_set(&self) -> String {
+        workerS_SET.replace("{queue}", &self.namespace)
     }
 
     /// Returns the Redis key for the set of dead jobs associated with the queue.
@@ -391,7 +391,7 @@ impl<T: Serialize + DeserializeOwned, Conn> RedisStorage<T, Conn, JsonCodec<Vec<
                     "../lua/enqueue_scheduled_jobs.lua"
                 )),
                 get_jobs: redis::Script::new(include_str!("../lua/get_jobs.lua")),
-                register_consumer: redis::Script::new(include_str!("../lua/register_consumer.lua")),
+                register_worker: redis::Script::new(include_str!("../lua/register_worker.lua")),
                 kill_job: redis::Script::new(include_str!("../lua/kill_job.lua")),
                 reenqueue_active: redis::Script::new(include_str!(
                     "../lua/reenqueue_active_jobs.lua"
@@ -613,7 +613,7 @@ where
         worker_id: &WorkerId,
     ) -> Result<Vec<Request<T, RedisContext>>, RedisError> {
         let fetch_jobs = self.scripts.get_jobs.clone();
-        let consumers_set = self.config.consumers_set();
+        let workers_set = self.config.workers_set();
         let active_jobs_list = self.config.active_jobs_list();
         let job_data_hash = self.config.job_data_hash();
         let inflight_set = format!("{}:{}", self.config.inflight_jobs_set(), worker_id);
@@ -621,7 +621,7 @@ where
         let namespace = &self.config.namespace;
 
         let result = fetch_jobs
-            .key(&consumers_set)
+            .key(&workers_set)
             .key(&active_jobs_list)
             .key(&inflight_set)
             .key(&job_data_hash)
@@ -647,7 +647,7 @@ where
             Err(e) => {
                 warn!("An error occurred during streaming jobs: {e}");
                 if matches!(e.kind(), ErrorKind::ResponseError)
-                    && e.to_string().contains("consumer not registered script")
+                    && e.to_string().contains("worker not registered script")
                 {
                     self.keep_alive(worker_id).await?;
                 }
@@ -680,14 +680,14 @@ fn deserialize_job(job: &Value) -> Result<&Vec<u8>, RedisError> {
 
 impl<T, Conn: ConnectionLike, C> RedisStorage<T, Conn, C> {
     async fn keep_alive(&mut self, worker_id: &WorkerId) -> Result<(), RedisError> {
-        let register_consumer = self.scripts.register_consumer.clone();
+        let register_worker = self.scripts.register_worker.clone();
         let inflight_set = format!("{}:{}", self.config.inflight_jobs_set(), worker_id);
-        let consumers_set = self.config.consumers_set();
+        let workers_set = self.config.workers_set();
 
         let now: i64 = Utc::now().timestamp();
 
-        register_consumer
-            .key(consumers_set)
+        register_worker
+            .key(workers_set)
             .arg(now)
             .arg(inflight_set)
             .invoke_async(&mut self.conn)
@@ -990,14 +990,14 @@ where
         dead_since: DateTime<Utc>,
     ) -> Result<usize, RedisError> {
         let reenqueue_orphaned = self.scripts.reenqueue_orphaned.clone();
-        let consumers_set = self.config.consumers_set();
+        let workers_set = self.config.workers_set();
         let active_jobs_list = self.config.active_jobs_list();
         let signal_list = self.config.signal_list();
 
         let dead_since = dead_since.timestamp();
 
         let res: Result<usize, RedisError> = reenqueue_orphaned
-            .key(consumers_set)
+            .key(workers_set)
             .key(active_jobs_list)
             .key(signal_list)
             .arg(dead_since)

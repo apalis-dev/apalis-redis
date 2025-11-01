@@ -1,4 +1,4 @@
--- KEYS[1]: this consumer's inflight set
+-- KEYS[1]: this worker's inflight set
 -- KEYS[2]: the active jobs list
 -- KEYS[3]: the signal list
 
@@ -7,7 +7,7 @@
 -- Returns: nil
 
 for _,job_id in ipairs(ARGV) do
-  -- Remove the jobs from this consumer's inflight set
+  -- Remove the jobs from this worker's inflight set
   local removed = redis.call("srem", KEYS[1], job_id)
 
   if removed == 1 then

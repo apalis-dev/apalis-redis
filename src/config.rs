@@ -1,14 +1,20 @@
 use std::time::Duration;
 
-const ACTIVE_JOBS_LIST: &str = "{queue}:active";
-const CONSUMERS_SET: &str = "{queue}:consumers";
-const DEAD_JOBS_SET: &str = "{queue}:dead";
-const DONE_JOBS_SET: &str = "{queue}:done";
-const FAILED_JOBS_SET: &str = "{queue}:failed";
-const INFLIGHT_JOB_SET: &str = "{queue}:inflight";
-const JOB_DATA_HASH: &str = "{queue}:data";
+use apalis_core::backend::{Backend, ConfigExt, queue::Queue};
+use redis::RedisError;
+use ulid::Ulid;
+
+use crate::{RedisContext, RedisStorage};
+
+const ACTIVE_TASKS_LIST: &str = "{queue}:active";
+const WORKERS_SET: &str = "{queue}:workers";
+const DEAD_TASKS_SET: &str = "{queue}:dead";
+const DONE_TASKS_SET: &str = "{queue}:done";
+const FAILED_TASKS_SET: &str = "{queue}:failed";
+const INFLIGHT_TASKS_SET: &str = "{queue}:inflight";
+const TASK_DATA_HASH: &str = "{queue}:data";
 const JOB_META_HASH: &str = "{queue}:meta";
-const SCHEDULED_JOBS_SET: &str = "{queue}:scheduled";
+const SCHEDULED_TASKS_SET: &str = "{queue}:scheduled";
 const SIGNAL_LIST: &str = "{queue}:signal";
 
 /// Config for a [`RedisStorage`]
@@ -24,7 +30,7 @@ pub struct RedisConfig {
     keep_alive: Duration,
     enqueue_scheduled: Duration,
     reenqueue_orphaned_after: Duration,
-    queue: String,
+    queue: Queue,
 }
 
 impl Default for RedisConfig {
@@ -35,7 +41,7 @@ impl Default for RedisConfig {
             keep_alive: Duration::from_secs(30),
             enqueue_scheduled: Duration::from_secs(1),
             reenqueue_orphaned_after: Duration::from_secs(300),
-            queue: String::from("default"),
+            queue: Queue::from("default"),
         }
     }
 }
@@ -44,7 +50,7 @@ impl RedisConfig {
     /// Creates a new RedisConfig with the specified queue namespace.
     pub fn new(queue: &str) -> Self {
         Self {
-            queue: queue.to_string(),
+            queue: Queue::from(queue),
             ..Default::default()
         }
     }
@@ -69,7 +75,7 @@ impl RedisConfig {
     }
 
     /// get the namespace
-    pub fn get_namespace(&self) -> &String {
+    pub fn get_namespace(&self) -> &Queue {
         &self.queue
     }
 
@@ -99,7 +105,7 @@ impl RedisConfig {
 
     /// set the namespace for the Storage
     pub fn set_namespace(mut self, namespace: &str) -> Self {
-        self.queue = namespace.to_string();
+        self.queue = Queue::from(namespace);
         self
     }
 
@@ -109,16 +115,16 @@ impl RedisConfig {
     /// # Returns
     /// A `String` representing the Redis key for the pending jobs list.
     pub fn active_jobs_list(&self) -> String {
-        ACTIVE_JOBS_LIST.replace("{queue}", &self.queue)
+        ACTIVE_TASKS_LIST.replace("{queue}", &self.queue.to_string())
     }
 
-    /// Returns the Redis key for the set of consumers associated with the queue.
+    /// Returns the Redis key for the set of workers associated with the queue.
     /// The key is dynamically generated using the namespace of the queue.
     ///
     /// # Returns
-    /// A `String` representing the Redis key for the consumers set.
-    pub fn consumers_set(&self) -> String {
-        CONSUMERS_SET.replace("{queue}", &self.queue)
+    /// A `String` representing the Redis key for the workers set.
+    pub fn workers_set(&self) -> String {
+        WORKERS_SET.replace("{queue}", &self.queue.to_string())
     }
 
     /// Returns the Redis key for the set of dead jobs associated with the queue.
@@ -127,7 +133,7 @@ impl RedisConfig {
     /// # Returns
     /// A `String` representing the Redis key for the dead jobs set.
     pub fn dead_jobs_set(&self) -> String {
-        DEAD_JOBS_SET.replace("{queue}", &self.queue)
+        DEAD_TASKS_SET.replace("{queue}", &self.queue.to_string())
     }
 
     /// Returns the Redis key for the set of done jobs associated with the queue.
@@ -136,7 +142,7 @@ impl RedisConfig {
     /// # Returns
     /// A `String` representing the Redis key for the done jobs set.
     pub fn done_jobs_set(&self) -> String {
-        DONE_JOBS_SET.replace("{queue}", &self.queue)
+        DONE_TASKS_SET.replace("{queue}", &self.queue.to_string())
     }
 
     /// Returns the Redis key for the set of failed jobs associated with the queue.
@@ -145,7 +151,7 @@ impl RedisConfig {
     /// # Returns
     /// A `String` representing the Redis key for the failed jobs set.
     pub fn failed_jobs_set(&self) -> String {
-        FAILED_JOBS_SET.replace("{queue}", &self.queue)
+        FAILED_TASKS_SET.replace("{queue}", &self.queue.to_string())
     }
 
     /// Returns the Redis key for the set of inflight jobs associated with the queue.
@@ -154,7 +160,7 @@ impl RedisConfig {
     /// # Returns
     /// A `String` representing the Redis key for the inflight jobs set.
     pub fn inflight_jobs_set(&self) -> String {
-        INFLIGHT_JOB_SET.replace("{queue}", &self.queue)
+        INFLIGHT_TASKS_SET.replace("{queue}", &self.queue.to_string())
     }
 
     /// Returns the Redis key for the hash storing job data associated with the queue.
@@ -163,7 +169,7 @@ impl RedisConfig {
     /// # Returns
     /// A `String` representing the Redis key for the job data hash.
     pub fn job_data_hash(&self) -> String {
-        JOB_DATA_HASH.replace("{queue}", &self.queue)
+        TASK_DATA_HASH.replace("{queue}", &self.queue.to_string())
     }
 
     /// Returns the Redis key for the hash storing job metadata associated with the queue.
@@ -172,7 +178,7 @@ impl RedisConfig {
     /// # Returns
     /// A `String` representing the Redis key for the job meta hash.
     pub fn job_meta_hash(&self) -> String {
-        JOB_META_HASH.replace("{queue}", &self.queue)
+        JOB_META_HASH.replace("{queue}", &self.queue.to_string())
     }
 
     /// Returns the Redis key for the set of scheduled jobs associated with the queue.
@@ -181,7 +187,7 @@ impl RedisConfig {
     /// # Returns
     /// A `String` representing the Redis key for the scheduled jobs set.
     pub fn scheduled_jobs_set(&self) -> String {
-        SCHEDULED_JOBS_SET.replace("{queue}", &self.queue)
+        SCHEDULED_TASKS_SET.replace("{queue}", &self.queue.to_string())
     }
 
     /// Returns the Redis key for the list of signals associated with the queue.
@@ -190,7 +196,7 @@ impl RedisConfig {
     /// # Returns
     /// A `String` representing the Redis key for the signal list.
     pub fn signal_list(&self) -> String {
-        SIGNAL_LIST.replace("{queue}", &self.queue)
+        SIGNAL_LIST.replace("{queue}", &self.queue.to_string())
     }
 
     /// Gets the reenqueue_orphaned_after duration.
@@ -210,5 +216,15 @@ impl RedisConfig {
     pub fn set_reenqueue_orphaned_after(mut self, after: Duration) -> Self {
         self.reenqueue_orphaned_after = after;
         self
+    }
+}
+
+impl<Args: Sync, Conn, C> ConfigExt for RedisStorage<Args, Conn, C>
+where
+    RedisStorage<Args, Conn, C>:
+        Backend<Context = RedisContext, Compact = Vec<u8>, IdType = Ulid, Error = RedisError>,
+{
+    fn get_queue(&self) -> Queue {
+        self.config.queue.clone()
     }
 }

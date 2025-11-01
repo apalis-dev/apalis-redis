@@ -81,7 +81,7 @@ impl<Args> MakeShared<Args> for SharedRedisStorage {
         self.registry
             .lock()
             .unwrap()
-            .insert(config.get_namespace().clone(), poller.clone());
+            .insert(config.get_namespace().to_string(), poller.clone());
         let conn = self.conn.clone();
         let sink = RedisSink::new(&conn, &config);
         Ok(RedisStorage {

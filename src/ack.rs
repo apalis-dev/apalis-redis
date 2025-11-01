@@ -53,7 +53,7 @@ impl<Conn: ConnectionLike + Send + Clone + 'static, Res, Encode>
 where
     Encode: Codec<Res, Compact = Vec<u8>>,
 {
-    type Future = BoxFuture<'static, Result<(), Self::Error>>;
+    type Future = BoxFuture<'static, Result<(), RedisError>>;
 
     type Error = RedisError;
 
