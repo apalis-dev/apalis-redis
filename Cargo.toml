@@ -10,7 +10,7 @@ description = "Background task processing for rust using apalis and redis"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-apalis-core = { version = "1.0.0-alpha.7", default-features = false, features = [
+apalis-core = { version = "1.0.0-alpha.8", default-features = false, features = [
     "sleep",
     "json",
 ] }
@@ -37,8 +37,8 @@ serde_json = "1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
-apalis = { version = "1.0.0-alpha.7", features = ["tracing"] }
-apalis-workflow = { version = "0.1.0-alpha.5" }
+apalis = { version = "1.0.0-alpha.8", features = ["tracing", "limit"] }
+apalis-workflow = { version = "0.1.0-alpha.6" }
 bincode = { version = "2.0.1", features = ["serde"] }
 apalis-board-api = { version = "1.0.0-alpha.1", features = ["axum"] }
 axum = { version = "0.8", features = ["macros", "json"] }

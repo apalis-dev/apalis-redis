@@ -35,7 +35,7 @@ async fn main() {
             .set_buffer_size(100),
     );
 
-    // backend.push(42u32).await.unwrap();
+    backend.push(42u32).await.unwrap();
 
     async fn task(task: u32, ctx: RedisContext) -> Result<(), BoxDynError> {
         let handle = std::thread::current();

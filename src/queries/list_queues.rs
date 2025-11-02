@@ -1,8 +1,7 @@
 use apalis_core::backend::{Backend, ListQueues, QueueInfo, codec::Codec};
-use redis::Script;
 use ulid::Ulid;
 
-use crate::{RedisContext, RedisStorage, build_error};
+use crate::{RedisContext, RedisStorage};
 
 impl<Args, Conn, C> ListQueues for RedisStorage<Args, Conn, C>
 where

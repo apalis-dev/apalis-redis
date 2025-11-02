@@ -5,34 +5,159 @@
     unreachable_pub
 )]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-//! apalis storage using Redis as a backend
+//! # apalis-redis
+//!
+//! Background task processing for rust using `apalis` and `redis`
+//!
+//! ## Features
+//!
+//! - **Reliable task queue** using any `redis` compatible service as the backend.
+//! - **Multiple storage types**: standard polling and `pubsub` based approaches.
+//! - **Customizable codecs** for serializing/deserializing task arguments such as `json`, `msgpack` and `bincode`.
+//! - **Heartbeat and orphaned tasks re-enqueueing** for consistent task processing.
+//! - **Integration with `apalis` workers and middleware** such as `retry`, `long_running` and `parallelize`
+//! - **Shared storage** for multiple task types using the same `redis` connection.
+//! - **Observability**: Monitor and manage tasks using [apalis-board](https://github.com/apalis-dev/apalis-board).
+//!
+//! ## Usage
+//!
+//! Add the latest versions from crates.io:
+//!
+//! ```toml
+//! apalis = { version = "1", features = ["retry"] }
+//! apalis-redis = { version = "1" }
+//! ```
+//!
+//! ### Example
+//!
 //! ```rust,no_run
+//! use apalis::prelude::*;
 //! use apalis_redis::{RedisStorage, RedisConfig as Config};
-//! # use apalis_core::worker::builder::WorkerBuilder;
-//! # use apalis_core::error::BoxDynError;
 //! use serde::{Deserialize, Serialize};
+//! # use std::env;
 //!
 //! #[derive(Debug, Deserialize, Serialize)]
 //! struct Email {
 //!     to: String,
 //! }
 //!
-//! async fn send_email(job: Email) -> Result<(), BoxDynError> {
+//! async fn send_email(task: Email) -> Result<(), BoxDynError> {
 //!     Ok(())
 //! }
 //!
 //! #[tokio::main]
 //! async fn main() {
-//!     let redis_url = std::env::var("REDIS_URL").expect("Missing env variable REDIS_URL");
+//!     let redis_url = env::var("REDIS_URL").expect("REDIS_URL must be set");
 //!     let conn = apalis_redis::connect(redis_url).await.expect("Could not connect");
 //!     let storage = RedisStorage::new(conn);
+//!
 //!     let worker = WorkerBuilder::new("tasty-pear")
-//!         .backend(storage.clone())
+//!         .backend(storage)
 //!         .build(send_email);
 //!
 //!     worker.run().await;
 //! }
 //! ```
+//!
+//! ### Shared Example
+//!
+//! This shows an example of multiple backends using the same connection.
+//! This can improve performance if you have many task types.
+//!
+//! ```rust,no_run
+//! use apalis::prelude::*;
+//! use apalis_redis::{RedisStorage, RedisConfig as Config, shared::SharedRedisStorage, Client};
+//! use std::collections::HashMap;
+//! use futures::stream;
+//! use std::time::Duration;
+//! use std::env;
+//!
+//! #[tokio::main]
+//! async fn main() {
+//!     let client = Client::open(env::var("REDIS_URL").unwrap()).unwrap();
+//!
+//!     let mut store = SharedRedisStorage::new(client).await.expect("Could not create shared");
+//!
+//!     let mut map_store = store.make_shared().unwrap();
+//!
+//!     let mut int_store = store.make_shared().unwrap();
+//!
+//!     map_store
+//!         .push_stream(&mut stream::iter(vec![HashMap::<String, String>::new()]))
+//!         .await
+//!         .unwrap();
+//!     int_store.push(99).await.unwrap();
+//!
+//!     async fn send_reminder<T, I>(
+//!         _: T,
+//!         task_id: TaskId<I>,
+//!         wrk: WorkerContext,
+//!     ) -> Result<(), BoxDynError> {
+//!         tokio::time::sleep(Duration::from_secs(2)).await;
+//!         wrk.stop().unwrap();
+//!         Ok(())
+//!     }
+//!
+//!     let int_worker = WorkerBuilder::new("rango-tango-2")
+//!         .backend(int_store)
+//!         .build(send_reminder);
+//!     let map_worker = WorkerBuilder::new("rango-tango-1")
+//!         .backend(map_store)
+//!         .build(send_reminder);
+//!     tokio::try_join!(int_worker.run(), map_worker.run()).unwrap();
+//! }
+//! ```
+//!
+//! ## Workflow Example
+//!
+//! ```rust,no_run
+//! use apalis::prelude::*;
+//! use apalis_redis::{RedisStorage, RedisConfig as Config};
+//! use apalis_workflow::WorkFlow;
+//! use serde::{Deserialize, Serialize};
+//! # use std::env;
+//!
+//! #[derive(Debug, Deserialize, Serialize)]
+//! struct Data {
+//!    value: u32,
+//! }
+//!
+//! async fn task1(task: u32) -> Result<Data, BoxDynError> {
+//!    Ok(Data { value: task + 1 })
+//! }
+//!
+//! async fn task2(task: Data) -> Result<Data, BoxDynError> {
+//!   Ok(Data { value: task.value * 2 })
+//! }
+//!
+//! async fn task3(task: Data) -> Result<(), BoxDynError> {
+//!   println!("Final value: {}", task.value);
+//!   Ok(())
+//! }
+//!
+//! #[tokio::main]
+//! async fn main() {
+//!   let redis_url = env::var("REDIS_URL").expect("REDIS_URL must be set");
+//!   let conn = apalis_redis::connect(redis_url).await.expect("Could not connect");
+//!   let storage = RedisStorage::new(conn);
+//!
+//!   let work_flow = WorkFlow::new("sample-workflow")
+//!       .then(task1)
+//!       .then(task2)
+//!       .then(task3);
+//!
+//!   let worker = WorkerBuilder::new("tasty-carrot")
+//!       .backend(storage)
+//!       .build(work_flow);
+//!
+//!   worker.run().await;
+//! }
+//! ```
+//!
+//! ## Observability
+//!
+//! You can track your tasks using [apalis-board](https://github.com/apalis-dev/apalis-board).
+//! ![Task](https://github.com/apalis-dev/apalis-board/raw/master/screenshots/task.png)
 
 use std::{any::type_name, io, marker::PhantomData, sync::Arc};
 
@@ -52,7 +177,8 @@ use futures::{
     future::select,
     stream::{self, BoxStream},
 };
-use redis::{Client, IntoConnectionInfo, aio::ConnectionLike};
+use redis::aio::ConnectionLike;
+pub use redis::{Client, IntoConnectionInfo, aio};
 
 mod ack;
 mod config;
@@ -244,8 +370,7 @@ where
         let event_listener = self.poller.clone();
         let service = worker.get_service().to_owned();
         let register = futures::stream::once(async move {
-            let register_worker =
-                redis::Script::new(include_str!("../lua/register_worker.lua"));
+            let register_worker = redis::Script::new(include_str!("../lua/register_worker.lua"));
             let inflight_set = format!("{}:{}", config.inflight_jobs_set(), worker_id);
             let workers_set = config.workers_set();
 
@@ -321,14 +446,17 @@ mod tests {
     use apalis_core::{
         backend::{TaskSink, shared::MakeShared},
         task::builder::TaskBuilder,
-        worker::{builder::WorkerBuilder, ext::event_listener::EventListenerExt},
+        worker::{
+            builder::WorkerBuilder,
+            ext::{event_listener::EventListenerExt, parallelize::ParallelizeExt},
+        },
     };
 
     use crate::shared::SharedRedisStorage;
 
     use super::*;
 
-    const ITEMS: u32 = 10;
+    const ITEMS: u32 = 100;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn basic_worker() {
@@ -379,7 +507,7 @@ mod tests {
             }
         }
 
-        let client = Client::open("redis://127.0.0.1/").unwrap();
+        let client = Client::open(env::var("REDIS_URL").unwrap()).unwrap();
         let conn = client.get_connection_manager().await.unwrap();
         let mut backend = RedisStorage::new_with_codec::<Bincode>(
             conn,
@@ -407,6 +535,7 @@ mod tests {
 
         let worker = WorkerBuilder::new("rango-tango")
             .backend(backend)
+            .parallelize(tokio::spawn)
             .on_event(|ctx, ev| {
                 println!("CTX {:?}, On Event = {:?}", ctx.name(), ev);
             })
@@ -416,7 +545,7 @@ mod tests {
 
     #[tokio::test]
     async fn shared_workers() {
-        let client = Client::open("redis://127.0.0.1/?protocol=resp3").unwrap();
+        let client = Client::open(env::var("REDIS_URL").unwrap()).unwrap();
         let mut store = SharedRedisStorage::new(client).await.unwrap();
 
         let mut string_store = store
@@ -493,24 +622,11 @@ mod tests {
             Ok(())
         }
 
-        let steps = WorkFlow::new("redis_stepped_workflow")
+        let work_flow = WorkFlow::new("sample-workflow")
             .then(task1)
-            .delay_for(Duration::from_millis(1400))
-            // .filter_map(|res: u32| async move { if res == 42 { Some(res) } else { None } })
+            .delay_for(Duration::from_millis(1000))
             .then(task2)
             .then(task3);
-
-        // assert_stepped::<
-        //     WorkFlow<
-        //         u32,
-        //         (),
-        //         RedisStorage<Vec<u8>>,
-        //         JsonCodec<Vec<u8>>,
-        //         Vec<u8>,
-        //         RedisContext,
-        //         Ulid,
-        //     >,
-        // >(&steps);
 
         let client = Client::open(env::var("REDIS_URL").unwrap()).unwrap();
         let conn = client.get_connection_manager().await.unwrap();
@@ -532,9 +648,7 @@ mod tests {
                     ctx.stop().unwrap();
                 }
             })
-            .build(steps);
+            .build(work_flow);
         worker.run().await.unwrap();
     }
-
-    // fn assert_stepped<T>(steps: &T) {}
 }
