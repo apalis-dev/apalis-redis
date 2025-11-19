@@ -41,9 +41,9 @@ async fn main() {
     let mut storage = RedisStorage::new(conn);
 
     let task = Email {
-        to: "test@example.com"
+        to: "test@example.com".to_owned()
     };
-    
+
     storage.push(task).await.unwrap();
 
     let worker = WorkerBuilder::new("tasty-pear")
@@ -60,11 +60,17 @@ This shows an example of multiple backends using the same connection.
 This can improve performance if you have many task types.
 
 ```rust,no_run
+use apalis::prelude::*;
+use apalis_redis::{RedisStorage, Client, shared::SharedRedisStorage};
+use tokio::time::Duration;
+use std::collections::HashMap;
+use futures::stream;
+use std::env;
+
 #[tokio::main]
 async fn main() {
-    let conn = apalis_redis::connect(env!("REDIS_URL")).await.expect("Could not connect");
-
-    let mut store = SharedRedisStorage::new(conn);
+    let client = Client::open(env::var("REDIS_URL").unwrap()).unwrap();
+    let mut store = SharedRedisStorage::new(client).await.unwrap();
 
     let mut map_store = store.make_shared().unwrap();
 
