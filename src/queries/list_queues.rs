@@ -1,11 +1,16 @@
-use apalis_core::backend::{Backend, ListQueues, QueueInfo, codec::Codec};
+use apalis_core::backend::{BackendExt, ListQueues, QueueInfo, codec::Codec};
 use ulid::Ulid;
 
 use crate::{RedisContext, RedisStorage};
 
 impl<Args, Conn, C> ListQueues for RedisStorage<Args, Conn, C>
 where
-    RedisStorage<Args, Conn, C>: Backend<Context = RedisContext, Compact = Vec<u8>, IdType = Ulid, Error = redis::RedisError>,
+    RedisStorage<Args, Conn, C>: BackendExt<
+            Context = RedisContext,
+            Compact = Vec<u8>,
+            IdType = Ulid,
+            Error = redis::RedisError,
+        >,
     C: Codec<Args, Compact = Vec<u8>> + Send,
     C::Error: std::error::Error + Send + Sync + 'static,
     Args: 'static + Send,

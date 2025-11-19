@@ -23,7 +23,7 @@ where
         worker: &WorkerContext,
         config: &RedisConfig,
         conn: &mut Conn,
-    ) -> Result<Vec<Task<Args, RedisContext, Ulid>>, RedisError> {
+    ) -> Result<Vec<Task<Vec<u8>, RedisContext, Ulid>>, RedisError> {
         let fetch_jobs = redis::Script::new(include_str!("../lua/get_jobs.lua"));
         let workers_set = config.workers_set();
         let active_jobs_list = config.active_jobs_list();
@@ -47,7 +47,7 @@ where
                 let mut processed = vec![];
                 let tasks = deserialize_with_meta(&jobs)?;
                 for unprocessed in tasks {
-                    let mut task = unprocessed.into_full_task::<Args, C>()?;
+                    let mut task = unprocessed.into_full_compact()?;
                     task.parts.ctx.lock_by = Some(worker.name().to_string());
                     processed.push(task)
                 }
@@ -100,23 +100,7 @@ impl CompactTask<'_> {
         C: Codec<Args, Compact = Vec<u8>>,
         C::Error: Into<BoxDynError>,
     {
-        let args = if std::any::TypeId::of::<Args>() == std::any::TypeId::of::<Vec<u8>>() {
-            // SAFETY: We've verified that Args and CompactType are the same type.
-            // We use ptr::read to move the value out without calling drop on self.job.
-            // Then we use mem::forget to prevent self from being dropped (which would
-            // try to drop self.job again, causing a double free).
-            let ready = self.data.to_vec();
-            unsafe {
-                let job_ptr = &ready as *const Vec<u8> as *const Args;
-                let args = std::ptr::read(job_ptr);
-                std::mem::forget(ready);
-                args
-            }
-        } else {
-            let args: Args =
-                C::decode(self.data).map_err(|e| build_error(&e.into().to_string()))?;
-            args
-        };
+        let args: Args = C::decode(self.data).map_err(|e| build_error(&e.into().to_string()))?;
         let context = RedisContext {
             max_attempts: self.max_attempts,
             lock_by: None,
@@ -157,7 +141,7 @@ pub fn parse_u32(value: &Value, field: &str) -> Result<u32, RedisError> {
 
 /// Deserializes task data and metadata from Redis values.
 pub fn deserialize_with_meta<'a>(
-    data: &'a Vec<redis::Value>,
+    data: &'a [redis::Value],
 ) -> Result<Vec<CompactTask<'a>>, RedisError> {
     if data.len() != 2 {
         return Err(build_error("Expected two elements: job_data and metadata"));
@@ -178,7 +162,7 @@ pub fn deserialize_with_meta<'a>(
 
     let mut result = Vec::with_capacity(job_data_list.len());
 
-    for (data_val, meta_val) in job_data_list.into_iter().zip(meta_list.into_iter()) {
+    for (data_val, meta_val) in job_data_list.iter().zip(meta_list.iter()) {
         let data = match data_val {
             redis::Value::BulkString(bytes) => bytes,
             _ => return Err(build_error("Invalid job data format")),

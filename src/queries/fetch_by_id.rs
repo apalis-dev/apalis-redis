@@ -1,5 +1,5 @@
 use apalis_core::{
-    backend::{Backend, FetchById, codec::Codec},
+    backend::{BackendExt, FetchById, codec::Codec},
     task::task_id::TaskId,
 };
 use redis::{Script, Value};
@@ -9,7 +9,12 @@ use crate::{RedisContext, RedisStorage, RedisTask, fetcher::deserialize_with_met
 
 impl<Args, Conn, C> FetchById<Args> for RedisStorage<Args, Conn, C>
 where
-    RedisStorage<Args, Conn, C>: Backend<Context = RedisContext, Compact = Vec<u8>, IdType = Ulid, Error = redis::RedisError>,
+    RedisStorage<Args, Conn, C>: BackendExt<
+            Context = RedisContext,
+            Compact = Vec<u8>,
+            IdType = Ulid,
+            Error = redis::RedisError,
+        >,
     C: Codec<Args, Compact = Vec<u8>> + Send,
     C::Error: std::error::Error + Send + Sync + 'static,
     Args: 'static + Send,
@@ -31,7 +36,7 @@ where
             Value::ServerError(s) => Err(s.into()),
             Value::Array(ref data) => {
                 // Reuse your existing parser
-                let tasks = deserialize_with_meta(&data).expect("Failed to deserialize");
+                let tasks = deserialize_with_meta(data).expect("Failed to deserialize");
 
                 if let Some(task) = tasks.into_iter().take(1).next() {
                     let task = task.into_full_task::<Args, C>()?;
