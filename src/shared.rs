@@ -20,8 +20,8 @@ pub struct SharedRedisStorage {
 }
 
 fn parse_channel_info(push: &PushInfo) -> Option<(String, String, String)> {
-    if let Some(Value::BulkString(channel_bytes)) = push.data.get(1) {
-        if let Ok(channel_str) = std::str::from_utf8(channel_bytes) {
+    if let Some(Value::BulkString(channel_bytes)) = push.data.get(1)
+        && let Ok(channel_str) = std::str::from_utf8(channel_bytes) {
             let parts: Vec<&str> = channel_str.split(':').collect();
             if parts.len() >= 4 {
                 let namespace = parts[1].to_owned();
@@ -30,7 +30,6 @@ fn parse_channel_info(push: &PushInfo) -> Option<(String, String, String)> {
                 return Some((namespace, action, signal));
             }
         }
-    }
     None
 }
 
@@ -44,11 +43,10 @@ impl SharedRedisStorage {
             let Ok(registry) = r2.lock() else {
                 return Err(redis::aio::SendError);
             };
-            if let Some((namespace, _, signal_kind)) = parse_channel_info(&msg) {
-                if signal_kind == "available" {
+            if let Some((namespace, _, signal_kind)) = parse_channel_info(&msg)
+                && signal_kind == "available" {
                     registry.get(&namespace).map(|f| f.notify(usize::MAX));
                 }
-            }
             Ok(())
         });
         let mut conn = client

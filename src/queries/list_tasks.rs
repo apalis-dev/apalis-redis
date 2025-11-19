@@ -43,14 +43,14 @@ where
             .await?;
 
         if let Value::Array(arr) = &result {
-            deserialize_with_meta(&arr)
+            deserialize_with_meta(arr)
                 .map(|tasks| {
                     tasks
                         .into_iter()
                         .map(|t| t.into_full_task::<Args, C>())
                         .collect::<Result<Vec<RedisTask<Args>>, _>>()
                 })
-                .and_then(|s| Ok(s?))
+                .and_then(|s| s)
         } else {
             Ok(vec![])
         }
@@ -101,7 +101,7 @@ where
                         .map(|t| t.into_full_compact())
                         .collect::<Result<Vec<RedisTask<Vec<u8>>>, _>>()
                 })
-                .and_then(|s| Ok(s?))
+                .and_then(|s| s)
         } else {
             Ok(vec![])
         }

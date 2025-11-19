@@ -141,7 +141,7 @@ pub fn parse_u32(value: &Value, field: &str) -> Result<u32, RedisError> {
 
 /// Deserializes task data and metadata from Redis values.
 pub fn deserialize_with_meta<'a>(
-    data: &'a Vec<redis::Value>,
+    data: &'a [redis::Value],
 ) -> Result<Vec<CompactTask<'a>>, RedisError> {
     if data.len() != 2 {
         return Err(build_error("Expected two elements: job_data and metadata"));
@@ -162,7 +162,7 @@ pub fn deserialize_with_meta<'a>(
 
     let mut result = Vec::with_capacity(job_data_list.len());
 
-    for (data_val, meta_val) in job_data_list.into_iter().zip(meta_list.into_iter()) {
+    for (data_val, meta_val) in job_data_list.iter().zip(meta_list.iter()) {
         let data = match data_val {
             redis::Value::BulkString(bytes) => bytes,
             _ => return Err(build_error("Invalid job data format")),
