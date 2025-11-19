@@ -1,6 +1,6 @@
 [package]
 name = "apalis-redis"
-version = "1.0.0-alpha.2"
+version = "1.0.0-beta.1"
 authors = ["Njuguna Mureithi <mureithinjuguna@gmail.com>"]
 edition = "2024"
 repository = "https://github.com/apalis-dev/apalis-redis"
