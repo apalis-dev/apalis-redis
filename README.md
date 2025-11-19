@@ -21,7 +21,7 @@ apalis-redis = { version = "1" }
 
 ### Example
 
-```rs
+```rust,no_run
 use apalis::prelude::*;
 use apalis_redis::{RedisStorage, RedisConfig as Config};
 use serde::{Deserialize, Serialize};
@@ -38,7 +38,13 @@ async fn send_email(task: Email) -> Result<(), BoxDynError> {
 #[tokio::main]
 async fn main() {
     let conn = apalis_redis::connect(env!("REDIS_URL")).await.expect("Could not connect");
-    let storage = RedisStorage::new(conn);
+    let mut storage = RedisStorage::new(conn);
+
+    let task = Email {
+        to: "test@example.com"
+    };
+    
+    storage.push(task).await.unwrap();
 
     let worker = WorkerBuilder::new("tasty-pear")
         .backend(storage)
@@ -53,7 +59,7 @@ async fn main() {
 This shows an example of multiple backends using the same connection.
 This can improve performance if you have many task types.
 
-```rs
+```rust,no_run
 #[tokio::main]
 async fn main() {
     let conn = apalis_redis::connect(env!("REDIS_URL")).await.expect("Could not connect");
@@ -92,10 +98,10 @@ async fn main() {
 
 ### Workflow example
 
-```rust
+```rust,no_run
 use apalis::prelude::*;
 use apalis_redis::{RedisStorage, RedisConfig as Config};
-use apalis_workflow::WorkFlow;
+use apalis_workflow::Workflow;
 use serde::{Deserialize, Serialize};
 use std::env;
 
@@ -123,10 +129,10 @@ async fn main() {
   let conn = apalis_redis::connect(redis_url).await.expect("Could not connect");
   let storage = RedisStorage::new(conn);
 
-  let work_flow = WorkFlow::new("sample-workflow")
-      .then(task1)
-      .then(task2)
-      .then(task3);
+  let work_flow = Workflow::new("sample-workflow")
+      .and_then(task1)
+      .and_then(task2)
+      .and_then(task3);
 
   let worker = WorkerBuilder::new("tasty-carrot")
       .backend(storage)

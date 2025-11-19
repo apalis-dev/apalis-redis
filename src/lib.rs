@@ -5,168 +5,16 @@
     unreachable_pub
 )]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-//! # apalis-redis
-//!
-//! Background task processing for rust using `apalis` and `redis`
-//!
-//! ## Features
-//!
-//! - **Reliable task queue** using any `redis` compatible service as the backend.
-//! - **Multiple storage types**: standard polling and `pubsub` based approaches.
-//! - **Customizable codecs** for serializing/deserializing task arguments such as `json`, `msgpack` and `bincode`.
-//! - **Heartbeat and orphaned tasks re-enqueueing** for consistent task processing.
-//! - **Integration with `apalis` workers and middleware** such as `retry`, `long_running` and `parallelize`
-//! - **Shared storage** for multiple task types using the same `redis` connection.
-//! - **Observability**: Monitor and manage tasks using [apalis-board](https://github.com/apalis-dev/apalis-board).
-//!
-//! ## Usage
-//!
-//! Add the latest versions from crates.io:
-//!
-//! ```toml
-//! apalis = { version = "1", features = ["retry"] }
-//! apalis-redis = { version = "1" }
-//! ```
-//!
-//! ### Example
-//!
-//! ```rust,no_run
-//! use apalis::prelude::*;
-//! use apalis_redis::{RedisStorage, RedisConfig as Config};
-//! use serde::{Deserialize, Serialize};
-//! # use std::env;
-//!
-//! #[derive(Debug, Deserialize, Serialize)]
-//! struct Email {
-//!     to: String,
-//! }
-//!
-//! async fn send_email(task: Email) -> Result<(), BoxDynError> {
-//!     Ok(())
-//! }
-//!
-//! #[tokio::main]
-//! async fn main() {
-//!     let redis_url = env::var("REDIS_URL").expect("REDIS_URL must be set");
-//!     let conn = apalis_redis::connect(redis_url).await.expect("Could not connect");
-//!     let storage = RedisStorage::new(conn);
-//!
-//!     let worker = WorkerBuilder::new("tasty-pear")
-//!         .backend(storage)
-//!         .build(send_email);
-//!
-//!     worker.run().await;
-//! }
-//! ```
-//!
-//! ### Shared Example
-//!
-//! This shows an example of multiple backends using the same connection.
-//! This can improve performance if you have many task types.
-//!
-//! ```rust,no_run
-//! use apalis::prelude::*;
-//! use apalis_redis::{RedisStorage, RedisConfig as Config, shared::SharedRedisStorage, Client};
-//! use std::collections::HashMap;
-//! use futures::stream;
-//! use std::time::Duration;
-//! use std::env;
-//!
-//! #[tokio::main]
-//! async fn main() {
-//!     let client = Client::open(env::var("REDIS_URL").unwrap()).unwrap();
-//!
-//!     let mut store = SharedRedisStorage::new(client).await.expect("Could not create shared");
-//!
-//!     let mut map_store = store.make_shared().unwrap();
-//!
-//!     let mut int_store = store.make_shared().unwrap();
-//!
-//!     map_store
-//!         .push_stream(&mut stream::iter(vec![HashMap::<String, String>::new()]))
-//!         .await
-//!         .unwrap();
-//!     int_store.push(99).await.unwrap();
-//!
-//!     async fn send_reminder<T, I>(
-//!         _: T,
-//!         task_id: TaskId<I>,
-//!         wrk: WorkerContext,
-//!     ) -> Result<(), BoxDynError> {
-//!         tokio::time::sleep(Duration::from_secs(2)).await;
-//!         wrk.stop().unwrap();
-//!         Ok(())
-//!     }
-//!
-//!     let int_worker = WorkerBuilder::new("rango-tango-2")
-//!         .backend(int_store)
-//!         .build(send_reminder);
-//!     let map_worker = WorkerBuilder::new("rango-tango-1")
-//!         .backend(map_store)
-//!         .build(send_reminder);
-//!     tokio::try_join!(int_worker.run(), map_worker.run()).unwrap();
-//! }
-//! ```
-//!
-//! ## Workflow Example
-//!
-//! ```rust,no_run
-//! use apalis::prelude::*;
-//! use apalis_redis::{RedisStorage, RedisConfig as Config};
-//! use apalis_workflow::WorkFlow;
-//! use serde::{Deserialize, Serialize};
-//! # use std::env;
-//!
-//! #[derive(Debug, Deserialize, Serialize)]
-//! struct Data {
-//!    value: u32,
-//! }
-//!
-//! async fn task1(task: u32) -> Result<Data, BoxDynError> {
-//!    Ok(Data { value: task + 1 })
-//! }
-//!
-//! async fn task2(task: Data) -> Result<Data, BoxDynError> {
-//!   Ok(Data { value: task.value * 2 })
-//! }
-//!
-//! async fn task3(task: Data) -> Result<(), BoxDynError> {
-//!   println!("Final value: {}", task.value);
-//!   Ok(())
-//! }
-//!
-//! #[tokio::main]
-//! async fn main() {
-//!   let redis_url = env::var("REDIS_URL").expect("REDIS_URL must be set");
-//!   let conn = apalis_redis::connect(redis_url).await.expect("Could not connect");
-//!   let storage = RedisStorage::new(conn);
-//!
-//!   let work_flow = WorkFlow::new("sample-workflow")
-//!       .then(task1)
-//!       .then(task2)
-//!       .then(task3);
-//!
-//!   let worker = WorkerBuilder::new("tasty-carrot")
-//!       .backend(storage)
-//!       .build(work_flow);
-//!
-//!   worker.run().await;
-//! }
-//! ```
-//!
-//! ## Observability
-//!
-//! You can track your tasks using [apalis-board](https://github.com/apalis-dev/apalis-board).
-//! ![Task](https://github.com/apalis-dev/apalis-board/raw/master/screenshots/task.png)
-
+#![doc = include_str!("../README.md")]
 use std::{any::type_name, io, marker::PhantomData, sync::Arc};
 
 use apalis_core::{
     backend::{
-        Backend, TaskStream,
+        Backend, BackendExt, TaskStream,
         codec::{Codec, json::JsonCodec},
     },
     error::BoxDynError,
+    features_table,
     task::Task,
     worker::{context::WorkerContext, ext::ack::AcknowledgeLayer},
 };
@@ -202,7 +50,27 @@ pub use crate::{
 pub type RedisTask<Args> = Task<Args, RedisContext, Ulid>;
 
 /// Represents a [Backend] that uses Redis for storage.
+///
 #[doc = "# Feature Support\n"]
+#[doc = features_table! {
+    setup = r#"
+    # {
+    #    use apalis_redis::RedisStorage;
+    #    use std::env;
+    #    let redis_url = env::var("REDIS_URL").expect("REDIS_URL must be set");
+    #    let conn = apalis_redis::connect(redis_url).await.expect("Could not connect");
+    #    RedisStorage::new(conn)
+    # };
+    "#,
+    TaskSink => supported("Ability to push new tasks", true),
+    MakeShared => supported("Share the same connection across multiple workers", false),
+    Workflow => supported("Supports workflows and orchestration", true),
+    WebUI => supported("Supports `apalis-board` for monitoring and managing tasks", true),
+    WaitForCompletion => supported("Wait for tasks to complete without blocking", true),
+    Serialization => supported("Supports multiple serialization formats such as JSON and MessagePack", false),
+    RegisterWorker => supported("Allow registering a worker with the backend", false),
+    ResumeAbandoned => supported("Resume abandoned tasks", false),
+}]
 #[derive(Debug)]
 pub struct RedisStorage<Args, Conn = ConnectionManager, C = JsonCodec<Vec<u8>>> {
     conn: Conn,
@@ -285,10 +153,6 @@ where
     type Error = RedisError;
     type Layer = AcknowledgeLayer<RedisAck<Conn, C>>;
 
-    type Compact = Vec<u8>;
-
-    type Codec = C;
-
     type Context = RedisContext;
 
     type Beat = BoxStream<'static, Result<(), Self::Error>>;
@@ -363,6 +227,33 @@ where
     }
 
     fn poll(self, worker: &WorkerContext) -> Self::Stream {
+        self.poll_compact(worker)
+            .map(|a| match a {
+                Ok(Some(task)) => Ok(Some(
+                    task.try_map(|t| C::decode(&t))
+                        .map_err(|e| build_error(&e.into().to_string()))?,
+                )),
+                Ok(None) => Ok(None),
+                Err(e) => Err(e),
+            })
+            .boxed()
+    }
+}
+
+impl<Args, Conn, C> BackendExt for RedisStorage<Args, Conn, C>
+where
+    Args: Unpin + Send + Sync + 'static,
+    Conn: Clone + ConnectionLike + Send + Sync + 'static,
+    C: Codec<Args, Compact = Vec<u8>> + Unpin + Send + 'static,
+    C::Error: Into<BoxDynError>,
+{
+    type Compact = Vec<u8>;
+
+    type Codec = C;
+
+    type CompactStream = TaskStream<Task<Self::Compact, RedisContext, Ulid>, RedisError>;
+
+    fn poll_compact(self, worker: &WorkerContext) -> Self::CompactStream {
         let worker = worker.clone();
         let worker_id = worker.name().to_owned();
         let config = self.config.clone();
@@ -438,7 +329,8 @@ fn build_error(message: &str) -> RedisError {
 
 #[cfg(test)]
 mod tests {
-    use apalis_workflow::WorkFlow;
+    use apalis_workflow::Workflow;
+    use apalis_workflow::WorkflowSink;
 
     use redis::Client;
     use std::{env, time::Duration};
@@ -456,7 +348,7 @@ mod tests {
 
     use super::*;
 
-    const ITEMS: u32 = 100;
+    const ITEMS: u32 = 10;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn basic_worker() {
@@ -622,22 +514,20 @@ mod tests {
             Ok(())
         }
 
-        let work_flow = WorkFlow::new("sample-workflow")
-            .then(task1)
+        let work_flow = Workflow::new("sample-workflow")
+            .and_then(task1)
             .delay_for(Duration::from_millis(1000))
-            .then(task2)
-            .then(task3);
+            .and_then(task2)
+            .and_then(task3);
 
         let client = Client::open(env::var("REDIS_URL").unwrap()).unwrap();
         let conn = client.get_connection_manager().await.unwrap();
-        let mut backend: RedisStorage<Vec<u8>> = RedisStorage::new_with_config(
+        let mut backend = RedisStorage::new_with_config(
             conn,
             RedisConfig::default().set_namespace("redis_workflow"),
         );
 
-        apalis_core::backend::WeakTaskSink::push(&mut backend, 1u32)
-            .await
-            .unwrap();
+        backend.push_start(0u32).await.unwrap();
 
         let worker = WorkerBuilder::new("rango-tango")
             .backend(backend)

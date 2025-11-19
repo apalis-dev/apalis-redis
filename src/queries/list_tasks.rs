@@ -1,4 +1,4 @@
-use apalis_core::backend::{Backend, Filter, ListAllTasks, ListTasks, codec::Codec};
+use apalis_core::backend::{BackendExt, Filter, ListAllTasks, ListTasks, codec::Codec};
 use redis::{Script, Value};
 use ulid::Ulid;
 
@@ -6,7 +6,7 @@ use crate::{RedisContext, RedisStorage, RedisTask, fetcher::deserialize_with_met
 
 impl<Args, Conn, C> ListTasks<Args> for RedisStorage<Args, Conn, C>
 where
-    RedisStorage<Args, Conn, C>: Backend<Context = RedisContext, Compact = Vec<u8>, IdType = Ulid, Error = redis::RedisError>,
+    RedisStorage<Args, Conn, C>: BackendExt<Context = RedisContext, Compact = Vec<u8>, IdType = Ulid, Error = redis::RedisError>,
     C: Codec<Args, Compact = Vec<u8>> + Send + Sync,
     C::Error: std::error::Error + Send + Sync + 'static,
     Args: 'static + Send + Sync,
@@ -54,7 +54,7 @@ where
 
 impl<Args, Conn, C> ListAllTasks for RedisStorage<Args, Conn, C>
 where
-    RedisStorage<Args, Conn, C>: Backend<Context = RedisContext, Compact = Vec<u8>, IdType = Ulid, Error = redis::RedisError>,
+    RedisStorage<Args, Conn, C>: BackendExt<Context = RedisContext, Compact = Vec<u8>, IdType = Ulid, Error = redis::RedisError>,
     C: Codec<Args, Compact = Vec<u8>> + Send + Sync,
     C::Error: std::error::Error + Send + Sync + 'static,
     Args: 'static + Send + Sync,

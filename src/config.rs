@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use apalis_core::backend::{Backend, ConfigExt, queue::Queue};
+use apalis_core::backend::{BackendExt, ConfigExt, queue::Queue};
 use redis::RedisError;
 use ulid::Ulid;
 
@@ -222,7 +222,7 @@ impl RedisConfig {
 impl<Args: Sync, Conn, C> ConfigExt for RedisStorage<Args, Conn, C>
 where
     RedisStorage<Args, Conn, C>:
-        Backend<Context = RedisContext, Compact = Vec<u8>, IdType = Ulid, Error = RedisError>,
+        BackendExt<Context = RedisContext, Compact = Vec<u8>, IdType = Ulid, Error = RedisError>,
 {
     fn get_queue(&self) -> Queue {
         self.config.queue.clone()
