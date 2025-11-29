@@ -280,7 +280,7 @@ where
             Ok(None)
         })
         .filter_map(
-            |res: Result<Option<Task<Args, RedisContext>>, RedisError>| async move {
+            |res: Result<Option<Task<Args, RedisContext, Ulid>>, RedisError>| async move {
                 match res {
                     Ok(_) => None,
                     Err(e) => Some(Err(e)),
@@ -437,7 +437,7 @@ mod tests {
 
     #[tokio::test]
     async fn shared_workers() {
-        let client = Client::open(env::var("REDIS_URL").unwrap()).unwrap();
+        let client = Client::open("redis://127.0.0.1:6379/?protocol=resp3").unwrap();
         let mut store = SharedRedisStorage::new(client).await.unwrap();
 
         let mut string_store = store
