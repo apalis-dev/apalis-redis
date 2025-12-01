@@ -280,7 +280,7 @@ where
             Ok(None)
         })
         .filter_map(
-            |res: Result<Option<Task<Args, RedisContext>>, RedisError>| async move {
+            |res: Result<Option<Task<Args, RedisContext, Ulid>>, RedisError>| async move {
                 match res {
                     Ok(_) => None,
                     Err(e) => Some(Err(e)),
