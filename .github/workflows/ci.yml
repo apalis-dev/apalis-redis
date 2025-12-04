@@ -11,11 +11,17 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  REDIS_URL: redis://127.0.0.1/?protocol=resp3
 
 jobs:
   test:
     name: Test Suite
     runs-on: ${{ matrix.os }}
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
     strategy:
       matrix:
         os: [ubuntu-latest]

@@ -12,11 +12,17 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  REDIS_URL: redis://127.0.0.1/?protocol=resp3
 
 jobs:
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
     steps:
       - name: Checkout sources
         uses: actions/checkout@v6

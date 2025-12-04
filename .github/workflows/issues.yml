@@ -15,4 +15,4 @@ jobs:
         with:
           assignees: geofmureithi
           numOfAssignee: 1
-          allowSelfAssign: yes
+          allowSelfAssign: true
