@@ -84,11 +84,7 @@ pub async fn push_tasks<Conn: ConnectionLike>(
         let run_at = request.parts.run_at;
         let current = Utc::now().timestamp() as u64;
         // Ensure run_at is not in the past
-        let run_at = if run_at > current {
-            run_at
-        } else {
-            current
-        };
+        let run_at = if run_at > current { run_at } else { current };
 
         script = script
             .arg(task_id)
