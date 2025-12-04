@@ -82,11 +82,12 @@ pub async fn push_tasks<Conn: ConnectionLike>(
         let meta = serde_json::to_string(&request.parts.ctx.meta)
             .map_err(|e| Arc::new(build_error(&e.to_string())))?;
         let run_at = request.parts.run_at;
-
-        let run_at = if run_at - Utc::now().timestamp() as u64 > 0 {
+        let current = Utc::now().timestamp() as u64;
+        // Ensure run_at is not in the past
+        let run_at = if run_at > current {
             run_at
         } else {
-            0
+            current
         };
 
         script = script
