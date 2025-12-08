@@ -20,7 +20,7 @@ apalis-core = { version = "1.0.0-beta.2", default-features = false, features = [
     "sleep",
     "json",
 ] }
-redis = { version = "0.32", default-features = false, features = [
+redis = { version = "1.0", default-features = false, features = [
     "script",
     "aio",
     "connection-manager",
