@@ -9,7 +9,7 @@ use apalis_core::{
 use redis::{RedisError, Value, aio::ConnectionLike};
 use ulid::Ulid;
 
-use crate::{RedisStorage, build_error, config::RedisConfig, context::RedisContext};
+use crate::{RedisStorage, build_error, config::RedisConfig, context::RedisContext, scripts};
 
 impl<Args, Conn, C> RedisStorage<Args, Conn, C>
 where
@@ -24,14 +24,13 @@ where
         config: &RedisConfig,
         conn: &mut Conn,
     ) -> Result<Vec<Task<Vec<u8>, RedisContext, Ulid>>, RedisError> {
-        let fetch_jobs = redis::Script::new(include_str!("../lua/get_jobs.lua"));
         let workers_set = config.workers_set();
         let active_jobs_list = config.active_jobs_list();
         let job_data_hash = config.job_data_hash();
         let inflight_set = format!("{}:{}", config.inflight_jobs_set(), worker.name());
         let signal_list = config.signal_list();
 
-        let result = fetch_jobs
+        let result = scripts::GET_JOBS
             .key(&workers_set)
             .key(&active_jobs_list)
             .key(&inflight_set)

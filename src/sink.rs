@@ -1,7 +1,7 @@
 use std::{
     marker::PhantomData,
     pin::Pin,
-    sync::{Arc, LazyLock},
+    sync::Arc,
     task::{Context, Poll},
 };
 
@@ -12,12 +12,12 @@ use futures::{
     future::{BoxFuture, Shared},
 };
 use redis::{
-    RedisError, Script,
+    RedisError,
     aio::{ConnectionLike, ConnectionManager},
 };
 use ulid::Ulid;
 
-use crate::{RedisStorage, build_error, config::RedisConfig, context::RedisContext};
+use crate::{RedisStorage, build_error, config::RedisConfig, context::RedisContext, scripts};
 
 type SinkFuture = Shared<BoxFuture<'static, Result<(u32, u32), Arc<RedisError>>>>;
 
@@ -55,16 +55,13 @@ impl<Args, Conn: Clone, Cdc: Clone> Clone for RedisSink<Args, Cdc, Conn> {
     }
 }
 
-static BATCH_PUSH_SCRIPT: LazyLock<Script> =
-    LazyLock::new(|| Script::new(include_str!("../lua/batch_push.lua")));
-
 /// Pushes tasks to Redis using a batch Lua script.
 pub async fn push_tasks<Conn: ConnectionLike>(
     tasks: Vec<Task<Vec<u8>, RedisContext, Ulid>>,
     config: RedisConfig,
     mut conn: Conn,
 ) -> Result<(u32, u32), Arc<RedisError>> {
-    let mut batch = BATCH_PUSH_SCRIPT.key(config.job_data_hash());
+    let mut batch = scripts::BATCH_PUSH.key(config.job_data_hash());
     let mut script = batch
         .key(config.active_jobs_list())
         .key(config.signal_list())

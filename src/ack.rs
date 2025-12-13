@@ -9,12 +9,12 @@ use apalis_core::{
 use chrono::Utc;
 use futures::{FutureExt, future::BoxFuture};
 use redis::{
-    RedisError, Script,
+    RedisError,
     aio::{ConnectionLike, ConnectionManager},
 };
 use ulid::Ulid;
 
-use crate::{build_error, config::RedisConfig, context::RedisContext};
+use crate::{build_error, config::RedisConfig, context::RedisContext, scripts};
 
 /// A Redis acknowledgment Layer
 #[derive(Debug)]
@@ -79,11 +79,10 @@ where
             Err(e) => e,
         };
         let timestamp = Utc::now().timestamp();
-        let script = Script::new(include_str!("../lua/ack_job.lua"));
         let mut conn = self.conn.clone();
 
         async move {
-            let mut script = script.key(inflight_set);
+            let mut script = scripts::ACK_JOB.key(inflight_set);
             let _ = script
                 .key(done_jobs_set)
                 .key(dead_jobs_set)

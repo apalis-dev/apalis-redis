@@ -1,8 +1,7 @@
 use apalis_core::backend::{BackendExt, ListWorkers, RunningWorker, codec::Codec};
-use redis::Script;
 use ulid::Ulid;
 
-use crate::{RedisContext, RedisStorage};
+use crate::{RedisContext, RedisStorage, scripts};
 
 impl<Args: Sync, Conn, C> ListWorkers for RedisStorage<Args, Conn, C>
 where
@@ -24,7 +23,7 @@ where
         let queue = queue.to_string();
         let mut conn = self.conn.clone();
         async move {
-            let json: String = Script::new(include_str!("../../lua/list_workers.lua"))
+            let json: String = scripts::LIST_WORKERS
                 .key(format!("{}:workers", queue))
                 .key("core::apalis::workers:metadata::")
                 .invoke_async(&mut conn)
@@ -54,8 +53,7 @@ where
                 .query_async::<Vec<String>>(&mut conn)
                 .await?;
 
-            let script = Script::new(include_str!("../../lua/list_all_workers.lua"));
-            let mut script = script.key(queues);
+            let mut script = scripts::LIST_ALL_WORKERS.key(queues);
             let script = script.arg("core::apalis::workers:metadata::");
 
             let json: String = script.invoke_async(&mut conn).await?;

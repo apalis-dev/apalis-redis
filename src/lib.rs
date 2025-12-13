@@ -33,6 +33,8 @@ mod config;
 mod context;
 mod fetcher;
 mod queries;
+/// Cached Lua scripts for Redis operations.
+pub mod scripts;
 /// Shared utilities for Redis storage.
 pub mod shared;
 /// Redis sink module.
@@ -175,14 +177,12 @@ where
             ),
             |(keep_alive, worker_id, mut conn, config, service)| async move {
                 apalis_core::timer::sleep(keep_alive).await;
-                let register_worker =
-                    redis::Script::new(include_str!("../lua/register_worker.lua"));
                 let inflight_set = format!("{}:{}", config.inflight_jobs_set(), worker_id);
                 let workers_set = config.workers_set();
 
                 let now: i64 = Utc::now().timestamp();
 
-                let res = register_worker
+                let res = scripts::REGISTER_WORKER
                     .key(workers_set)
                     .key("core::apalis::workers:metadata::")
                     .arg(now)
@@ -204,9 +204,7 @@ where
                 let active_jobs_list = config.active_jobs_list();
                 let signal_list = config.signal_list();
                 let now: i64 = Utc::now().timestamp();
-                let enqueue_jobs =
-                    redis::Script::new(include_str!("../lua/enqueue_scheduled_jobs.lua"));
-                let res: Result<usize, _> = enqueue_jobs
+                let res: Result<usize, _> = scripts::ENQUEUE_SCHEDULED
                     .key(scheduled_jobs_set)
                     .key(active_jobs_list)
                     .key(signal_list)
@@ -261,13 +259,12 @@ where
         let event_listener = self.poller.clone();
         let service = worker.get_service().to_owned();
         let register = futures::stream::once(async move {
-            let register_worker = redis::Script::new(include_str!("../lua/register_worker.lua"));
             let inflight_set = format!("{}:{}", config.inflight_jobs_set(), worker_id);
             let workers_set = config.workers_set();
 
             let now: i64 = Utc::now().timestamp();
 
-            register_worker
+            scripts::REGISTER_WORKER
                 .key(workers_set)
                 .key("core::apalis::workers:metadata::")
                 .arg(now)
