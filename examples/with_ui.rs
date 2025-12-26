@@ -1,7 +1,7 @@
 use std::env;
 
 use apalis::prelude::*;
-use apalis_board_api::sse::{TracingBroadcaster, TracingSubscriber};
+use apalis_board::axum::sse::{TracingBroadcaster, TracingSubscriber};
 use apalis_redis::{RedisConfig, RedisContext, RedisStorage};
 use futures::TryFutureExt;
 use tokio::signal::ctrl_c;
@@ -31,7 +31,7 @@ async fn main() {
     let mut backend = RedisStorage::new_with_config(
         conn,
         RedisConfig::default()
-            .set_namespace("redis_basic_worker")
+            .set_namespace("redis_basic_worker_with_ui")
             .set_buffer_size(100),
     );
 
@@ -70,7 +70,7 @@ async fn main() {
 mod http {
     use std::sync::{Arc, Mutex};
 
-    use apalis_board_api::{
+    use apalis_board::axum::{
         framework::{ApiBuilder, RegisterRoute},
         sse::TracingBroadcaster,
         ui::ServeUI,
