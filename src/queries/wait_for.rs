@@ -6,6 +6,7 @@ use apalis_core::task::task_id::TaskId;
 use apalis_core::timer::sleep;
 use futures::stream::{self, BoxStream, StreamExt};
 use redis::aio::ConnectionLike;
+use ulid::Ulid;
 use std::collections::HashSet;
 use std::str::FromStr;
 use std::time::Duration;
@@ -26,7 +27,7 @@ where
     Err: Into<BoxDynError> + Send + 'static,
     Res: Send + 'static,
 {
-    type ResultStream = BoxStream<'static, Result<TaskResult<Res>, Self::Error>>;
+    type ResultStream = BoxStream<'static, Result<TaskResult<Res, Ulid>, Self::Error>>;
 
     fn wait_for(
         &self,
@@ -81,7 +82,7 @@ where
     async fn check_status(
         &self,
         task_ids: impl IntoIterator<Item = TaskId<Self::IdType>> + Send,
-    ) -> Result<Vec<TaskResult<Res>>, Self::Error> {
+    ) -> Result<Vec<TaskResult<Res, Ulid>>, Self::Error> {
         use redis::AsyncCommands;
         let task_ids: Vec<_> = task_ids.into_iter().collect();
         if task_ids.is_empty() {

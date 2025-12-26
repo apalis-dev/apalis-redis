@@ -8,11 +8,9 @@
 #![doc = include_str!("../README.md")]
 use std::{any::type_name, io, marker::PhantomData, sync::Arc};
 
+use apalis_codec::json::JsonCodec;
 use apalis_core::{
-    backend::{
-        Backend, BackendExt, TaskStream,
-        codec::{Codec, json::JsonCodec},
-    },
+    backend::{Backend, BackendExt, TaskStream, codec::Codec, queue::Queue},
     error::BoxDynError,
     features_table,
     task::Task,
@@ -252,6 +250,10 @@ where
     type Codec = C;
 
     type CompactStream = TaskStream<Task<Self::Compact, RedisContext, Ulid>, RedisError>;
+
+    fn get_queue(&self) -> Queue {
+        self.config.get_namespace().clone()
+    }
 
     fn poll_compact(self, worker: &WorkerContext) -> Self::CompactStream {
         let worker = worker.clone();

@@ -30,10 +30,21 @@ impl Default for RedisContext {
 impl<T: Serialize + DeserializeOwned> MetadataExt<T> for RedisContext {
     type Error = serde_json::Error;
     fn extract(&self) -> Result<T, serde_json::Error> {
-        self.meta.extract()
+        use serde::de::Error as _;
+        let key = std::any::type_name::<T>();
+        match self.meta.get(key) {
+            Some(value) => T::deserialize(value),
+            None => Err(serde_json::Error::custom(format!(
+                "No entry for type `{key}` in metadata"
+            ))),
+        }
     }
+
     fn inject(&mut self, value: T) -> Result<(), serde_json::Error> {
-        self.meta.inject(value)
+        let key = std::any::type_name::<T>();
+        let json_value = serde_json::to_value(value)?;
+        self.meta.insert(key.to_owned(), json_value);
+        Ok(())
     }
 }
 

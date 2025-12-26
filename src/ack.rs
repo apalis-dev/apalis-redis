@@ -1,10 +1,8 @@
 use std::marker::PhantomData;
 
+use apalis_codec::json::JsonCodec;
 use apalis_core::{
-    backend::codec::{Codec, json::JsonCodec},
-    error::BoxDynError,
-    task::Parts,
-    worker::ext::ack::Acknowledge,
+    backend::codec::Codec, error::BoxDynError, task::Parts, worker::ext::ack::Acknowledge,
 };
 use chrono::Utc;
 use futures::{FutureExt, future::BoxFuture};
