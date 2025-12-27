@@ -1,0 +1,31 @@
+[graph]
+exclude-unpublished = true
+
+[advisories]
+unmaintained = "none"
+ignore = []
+
+[licenses]
+confidence-threshold = 1.0
+allow = ["Apache-2.0", "BSD-3-Clause", "MIT", "Unicode-3.0"]
+
+[bans]
+multiple-versions = "deny"
+highlight = "all"
+skip-tree = [
+    { name = "windows_x86_64_msvc" },
+    { name = "windows_x86_64_gnullvm" },
+    { name = "windows_x86_64_gnu" },
+    { name = "windows_i686_msvc" },
+    { name = "windows_i686_gnullvm" },
+    { name = "windows_i686_gnu" },
+    { name = "windows_aarch64_msvc" },
+    { name = "windows_aarch64_gnullvm" },
+    { name = "windows-targets" },
+    { name = "windows-sys" },
+]
+
+[sources]
+unknown-registry = "warn"
+unknown-git = "warn"
+allow-git = []

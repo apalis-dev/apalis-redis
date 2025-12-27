@@ -35,7 +35,6 @@ where
         match result {
             Value::ServerError(s) => Err(s.into()),
             Value::Array(ref data) => {
-                // Reuse your existing parser
                 let tasks = deserialize_with_meta(data).expect("Failed to deserialize");
 
                 if let Some(task) = tasks.into_iter().take(1).next() {

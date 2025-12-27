@@ -1,10 +1,6 @@
 use std::time::Duration;
 
-use apalis_core::backend::{BackendExt, ConfigExt, queue::Queue};
-use redis::RedisError;
-use ulid::Ulid;
-
-use crate::{RedisContext, RedisStorage};
+use apalis_core::backend::queue::Queue;
 
 const ACTIVE_TASKS_LIST: &str = "{queue}:active";
 const WORKERS_SET: &str = "{queue}:workers";
@@ -216,15 +212,5 @@ impl RedisConfig {
     pub fn set_reenqueue_orphaned_after(mut self, after: Duration) -> Self {
         self.reenqueue_orphaned_after = after;
         self
-    }
-}
-
-impl<Args: Sync, Conn, C> ConfigExt for RedisStorage<Args, Conn, C>
-where
-    RedisStorage<Args, Conn, C>:
-        BackendExt<Context = RedisContext, Compact = Vec<u8>, IdType = Ulid, Error = RedisError>,
-{
-    fn get_queue(&self) -> Queue {
-        self.config.queue.clone()
     }
 }
