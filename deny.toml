@@ -6,16 +6,8 @@ unmaintained = "none"
 ignore = []
 
 [licenses]
-confidence-threshold = 0.8
-allow = [
-    "Apache-2.0",
-    "BSD-3-Clause",
-    "MIT",
-    "Unicode-3.0",
-    "Zlib",
-    "ISC",
-    "CDLA-Permissive-2.0",
-]
+confidence-threshold = 1.0
+allow = ["Apache-2.0", "BSD-3-Clause", "MIT", "Unicode-3.0"]
 
 [bans]
 multiple-versions = "deny"
@@ -31,12 +23,6 @@ skip-tree = [
     { name = "windows_aarch64_gnullvm" },
     { name = "windows-targets" },
     { name = "windows-sys" },
-    # # TODO: @geofmureithi Investigate why these are causing issues possibly due to sqlx dependencies
-    # { name = "getrandom" },
-    # { name = "hashbrown" },
-    # { name = "rand" },
-    # { name = "rand_chacha" },
-    # { name = "rand_core" },
 ]
 
 [sources]

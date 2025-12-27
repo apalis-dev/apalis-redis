@@ -76,9 +76,11 @@ mod http {
         ui::ServeUI,
     };
     use apalis_redis::RedisStorage;
-    use axum::{Extension, Router};
+    use axum::{Extension, Router, ServiceExt};
     use futures::FutureExt;
     use tokio::signal::ctrl_c;
+    use tower_http::normalize_path::NormalizePathLayer;
+    use tower::Layer;
 
     pub async fn run_api_server(
         backend: RedisStorage<u32>,
@@ -87,11 +89,14 @@ mod http {
         let api = ApiBuilder::new(Router::new())
             .register(backend.clone())
             .build();
+        let layer = NormalizePathLayer::trim_trailing_slash();
 
         let app = Router::new()
             .nest("/api/v1", api)
             .fallback_service(ServeUI::new())
             .layer(Extension(broadcaster));
+
+         let app = ServiceExt::<axum::extract::Request>::into_make_service(layer.layer(app));
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
             .await
