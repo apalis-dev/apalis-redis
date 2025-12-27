@@ -6,10 +6,10 @@ use apalis_core::task::task_id::TaskId;
 use apalis_core::timer::sleep;
 use futures::stream::{self, BoxStream, StreamExt};
 use redis::aio::ConnectionLike;
-use ulid::Ulid;
 use std::collections::HashSet;
 use std::str::FromStr;
 use std::time::Duration;
+use ulid::Ulid;
 
 use crate::{RedisStorage, build_error};
 

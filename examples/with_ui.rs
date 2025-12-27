@@ -79,8 +79,8 @@ mod http {
     use axum::{Extension, Router, ServiceExt};
     use futures::FutureExt;
     use tokio::signal::ctrl_c;
-    use tower_http::normalize_path::NormalizePathLayer;
     use tower::Layer;
+    use tower_http::normalize_path::NormalizePathLayer;
 
     pub async fn run_api_server(
         backend: RedisStorage<u32>,
@@ -96,7 +96,7 @@ mod http {
             .fallback_service(ServeUI::new())
             .layer(Extension(broadcaster));
 
-         let app = ServiceExt::<axum::extract::Request>::into_make_service(layer.layer(app));
+        let app = ServiceExt::<axum::extract::Request>::into_make_service(layer.layer(app));
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
             .await
