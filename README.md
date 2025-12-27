@@ -151,7 +151,7 @@ async fn main() {
 ## Observability
 
 You can track your tasks using [apalis-board](https://github.com/apalis-dev/apalis-board).
-![Task](https://github.com/apalis-dev/apalis-board/raw/master/screenshots/task.png)
+![Task](https://github.com/apalis-dev/apalis-board/raw/main/screenshots/task.png)
 
 ## License
 
