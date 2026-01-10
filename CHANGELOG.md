@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [1.0.0-rc.2] - 2026-01-10
 - *bump*: Bump to v1.0.0-rc.1 (#24)
 - *ci(deps)*: Bump actions/upload-artifact from 4 to 5 (#3) 
 - *deps(deps)*: bump serde_json from 1.0.147 to 1.0.148 (#26) 
