@@ -1,2 +1,6 @@
 
 # cargo-vet imports lock
+
+[[unpublished.apalis-redis]]
+version = "1.0.0-rc.2"
+audited_as = "1.0.0-rc.1"
