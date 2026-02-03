@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc.3] - 2026-02-03
+- *bump*: Bump to v1.0.0-rc.3 (#35)
+
 ## [1.0.0-rc.2] - 2026-01-10
 - *bump*: Bump to v1.0.0-rc.1 (#24)
 - *ci(deps)*: Bump actions/upload-artifact from 4 to 5 (#3) 
