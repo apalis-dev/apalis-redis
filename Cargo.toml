@@ -17,7 +17,7 @@ include = ["src/**", "lua/**", "Cargo.toml", "README.md", "LICENSE"]
 
 [dependencies]
 apalis-codec = "0.1.0-rc.3"
-apalis-core = { version = "1.0.0-rc.3", default-features = false, features = [
+apalis-core = { version = "1.0.0-rc.4", default-features = false, features = [
     "sleep",
 ] }
 redis = { version = "0.32", default-features = false, features = [
