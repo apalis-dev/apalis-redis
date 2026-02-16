@@ -16,7 +16,7 @@ include = ["src/**", "lua/**", "Cargo.toml", "README.md", "LICENSE"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-apalis-codec = "0.1.0-rc.3"
+apalis-codec = "0.1.0-rc.4"
 apalis-core = { version = "1.0.0-rc.3", default-features = false, features = [
     "sleep",
 ] }
