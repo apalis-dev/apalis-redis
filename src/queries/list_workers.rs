@@ -32,7 +32,7 @@ where
             dbg!(&json);
             let workers: Vec<RunningWorker> = serde_json::from_str(&json).map_err(|e| {
                 redis::RedisError::from((
-                    redis::ErrorKind::TypeError,
+                    redis::ErrorKind::Parse,
                     "invalid JSON",
                     e.to_string(),
                 ))
@@ -62,7 +62,7 @@ where
 
             let workers: Vec<RunningWorker> = serde_json::from_str(&json).map_err(|e| {
                 redis::RedisError::from((
-                    redis::ErrorKind::TypeError,
+                    redis::ErrorKind::Parse,
                     "invalid JSON",
                     e.to_string(),
                 ))
