@@ -31,11 +31,7 @@ where
                 .await?;
             dbg!(&json);
             let workers: Vec<RunningWorker> = serde_json::from_str(&json).map_err(|e| {
-                redis::RedisError::from((
-                    redis::ErrorKind::TypeError,
-                    "invalid JSON",
-                    e.to_string(),
-                ))
+                redis::RedisError::from((redis::ErrorKind::Parse, "invalid JSON", e.to_string()))
             })?;
 
             Ok(workers)
@@ -61,11 +57,7 @@ where
             let json: String = script.invoke_async(&mut conn).await?;
 
             let workers: Vec<RunningWorker> = serde_json::from_str(&json).map_err(|e| {
-                redis::RedisError::from((
-                    redis::ErrorKind::TypeError,
-                    "invalid JSON",
-                    e.to_string(),
-                ))
+                redis::RedisError::from((redis::ErrorKind::Parse, "invalid JSON", e.to_string()))
             })?;
 
             Ok(workers)
