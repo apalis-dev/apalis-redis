@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc.4] - 2026-02-21
+
 - *deps(deps)*: bump redis from 0.32 to 1.0 (#39) 
 
 ## [1.0.0-rc.3] - 2026-02-03
