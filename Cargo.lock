@@ -36,18 +36,18 @@ dependencies = [
 
 [[package]]
 name = "apalis-board"
-version = "1.0.0-rc.3"
+version = "1.0.0-rc.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9850af47672959a185455f9317f0bb234e3d0c3044ac8b2543da62f9db8e2922"
+checksum = "9ef709d9a3bcabd9f6fb09404c29df8d0acc789511b0e7e7b29cb804d05774d5"
 dependencies = [
  "apalis-board-api",
 ]
 
 [[package]]
 name = "apalis-board-api"
-version = "1.0.0-rc.3"
+version = "1.0.0-rc.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ad1d3d18185200ccac61d5682e9b57e02d912e7df7bc4bf63923f6b720beca4"
+checksum = "6ed583947f906bd99574c42a1ac0d2cdf5c202ffcc9e946fc995df43bce4d21f"
 dependencies = [
  "apalis-board-types",
  "apalis-core",
@@ -64,9 +64,9 @@ dependencies = [
 
 [[package]]
 name = "apalis-board-types"
-version = "1.0.0-rc.3"
+version = "1.0.0-rc.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8adf81543a769a0bbc13719f4149e867608cc341addd91dd1f9e0f61df0d37ee"
+checksum = "f5bf2d4d8965f74922d850ed40a4fe240219dfebc93df6ef06c561abfd46d27c"
 dependencies = [
  "serde",
  "thiserror",
