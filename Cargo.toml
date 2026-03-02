@@ -27,7 +27,7 @@ redis = { version = "1.0.4", default-features = false, features = [
 ] }
 serde = "1"
 log = "0.4.21"
-chrono = { version = "0.4.38", default-features = false, features = [
+chrono = { version = "0.4.44", default-features = false, features = [
     "clock",
     "serde",
 ] }
