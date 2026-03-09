@@ -20,7 +20,7 @@ apalis-codec = "0.1.0-rc.4"
 apalis-core = { version = "1.0.0-rc.4", default-features = false, features = [
     "sleep",
 ] }
-redis = { version = "1.0.4", default-features = false, features = [
+redis = { version = "1.0.5", default-features = false, features = [
     "script",
     "aio",
     "connection-manager",
