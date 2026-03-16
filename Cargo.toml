@@ -48,7 +48,7 @@ apalis-workflow = { version = "0.1.0-rc.4" }
 bincode = { version = "2.0.1", features = ["serde"] }
 apalis-board = { version = "1.0.0-rc.3", features = ["axum"] }
 axum = { version = "0.8", features = ["macros", "json"] }
-tracing-subscriber = { version = "0.3.11", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tracing = "0.1"
 tower-http = { version = "0.6.6", features = ["fs", "normalize-path"] }
 
