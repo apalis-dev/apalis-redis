@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, time::Duration};
 
 use apalis::prelude::*;
 use apalis_board::axum::sse::{TracingBroadcaster, TracingSubscriber};
@@ -40,6 +40,8 @@ async fn main() {
     async fn task(task: u32, ctx: RedisContext) -> Result<(), BoxDynError> {
         let handle = std::thread::current();
         tracing::info!("{task:?}, {ctx:?}, Thread: {:?}", handle.id());
+        tokio::time::sleep(Duration::from_secs(3)).await;
+        tracing::info!("Completed task in 3s");
         Ok(())
     }
 
@@ -76,11 +78,9 @@ mod http {
         ui::ServeUI,
     };
     use apalis_redis::RedisStorage;
-    use axum::{Extension, Router, ServiceExt};
+    use axum::{Extension, Router};
     use futures::FutureExt;
     use tokio::signal::ctrl_c;
-    use tower::Layer;
-    use tower_http::normalize_path::NormalizePathLayer;
 
     pub async fn run_api_server(
         backend: RedisStorage<u32>,
@@ -89,14 +89,11 @@ mod http {
         let api = ApiBuilder::new(Router::new())
             .register(backend.clone())
             .build();
-        let layer = NormalizePathLayer::trim_trailing_slash();
 
         let app = Router::new()
             .nest("/api/v1", api)
             .fallback_service(ServeUI::new())
             .layer(Extension(broadcaster));
-
-        let app = ServiceExt::<axum::extract::Request>::into_make_service(layer.layer(app));
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
             .await
