@@ -29,7 +29,6 @@ where
                 .key("core::apalis::workers:metadata::")
                 .invoke_async(&mut conn)
                 .await?;
-            dbg!(&json);
             let workers: Vec<RunningWorker> = serde_json::from_str(&json).map_err(|e| {
                 redis::RedisError::from((redis::ErrorKind::Parse, "invalid JSON", e.to_string()))
             })?;

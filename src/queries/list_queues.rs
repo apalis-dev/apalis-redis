@@ -28,7 +28,7 @@ where
                 .await?
                 .into_iter()
                 .map(|name| QueueInfo {
-                    name,
+                    name: name.replace(":workers", ""),
                     activity: Vec::new(),
                     stats: Vec::new(),
                     workers: Vec::new(),
@@ -39,7 +39,7 @@ where
             // let now = chrono::Utc::now().timestamp();
             // let res = script
             //     .arg(now)
-            //     .key(queues)
+            //     .key(queues.)
             //     .invoke_async::<String>(&mut conn)
             //     .await
             //     .and_then(|json| {
