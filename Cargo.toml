@@ -1,6 +1,6 @@
 [package]
 name = "apalis-redis"
-version = "1.0.0-rc.6"
+version = "1.0.0-rc.7"
 authors = ["Njuguna Mureithi <mureithinjuguna@gmail.com>"]
 edition = "2024"
 repository = "https://github.com/apalis-dev/apalis-redis"
@@ -16,8 +16,8 @@ include = ["src/**", "lua/**", "Cargo.toml", "README.md", "LICENSE"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-apalis-codec = "0.1.0-rc.6"
-apalis-core = { version = "1.0.0-rc.6", default-features = false, features = [
+apalis-codec = "0.1.0-rc.7"
+apalis-core = { version = "1.0.0-rc.7", default-features = false, features = [
     "sleep",
 ] }
 redis = { version = "1.0.4", default-features = false, features = [
@@ -43,10 +43,10 @@ serde_json = "1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
-apalis = { version = "1.0.0-rc.6", features = ["tracing", "limit"] }
-apalis-workflow = { version = "0.1.0-rc.6" }
+apalis = { version = "1.0.0-rc.7", features = ["tracing", "limit"] }
+apalis-workflow = { version = "0.1.0-rc.7" }
 bincode = { version = "2.0.1", features = ["serde"] }
-apalis-board = { version = "1.0.0-rc.4", features = ["axum"] }
+apalis-board = { version = "1.0.0-rc.6", features = ["axum"] }
 axum = { version = "0.8", features = ["macros", "json"] }
 tracing-subscriber = { version = "0.3.11", features = ["env-filter"] }
 tracing = "0.1"
