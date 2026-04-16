@@ -20,15 +20,15 @@ version = "1.0.0-rc.7"
 criteria = "safe-to-run"
 
 [[exemptions.apalis-board]]
-version = "1.0.0-rc.6"
+version = "1.0.0-rc.7"
 criteria = "safe-to-run"
 
 [[exemptions.apalis-board-api]]
-version = "1.0.0-rc.6"
+version = "1.0.0-rc.7"
 criteria = "safe-to-run"
 
 [[exemptions.apalis-board-types]]
-version = "1.0.0-rc.6"
+version = "1.0.0-rc.7"
 criteria = "safe-to-run"
 
 [[exemptions.apalis-codec]]
@@ -100,7 +100,7 @@ version = "1.5.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.axum]]
-version = "0.8.8"
+version = "0.8.9"
 criteria = "safe-to-run"
 
 [[exemptions.axum-core]]
@@ -108,7 +108,7 @@ version = "0.5.6"
 criteria = "safe-to-run"
 
 [[exemptions.axum-macros]]
-version = "0.5.0"
+version = "0.5.1"
 criteria = "safe-to-run"
 
 [[exemptions.backon]]
@@ -124,7 +124,7 @@ version = "2.0.1"
 criteria = "safe-to-run"
 
 [[exemptions.bitflags]]
-version = "2.11.0"
+version = "2.11.1"
 criteria = "safe-to-deploy"
 
 [[exemptions.blocking]]
@@ -140,7 +140,7 @@ version = "1.11.1"
 criteria = "safe-to-deploy"
 
 [[exemptions.cc]]
-version = "1.2.59"
+version = "1.2.60"
 criteria = "safe-to-deploy"
 
 [[exemptions.cfg-if]]
@@ -260,7 +260,7 @@ version = "0.15.5"
 criteria = "safe-to-run"
 
 [[exemptions.hashbrown]]
-version = "0.16.1"
+version = "0.17.0"
 criteria = "safe-to-run"
 
 [[exemptions.hermit-abi]]
@@ -348,7 +348,7 @@ version = "0.7.4"
 criteria = "safe-to-run"
 
 [[exemptions.indexmap]]
-version = "2.13.1"
+version = "2.14.0"
 criteria = "safe-to-run"
 
 [[exemptions.itoa]]
@@ -356,7 +356,7 @@ version = "1.0.18"
 criteria = "safe-to-deploy"
 
 [[exemptions.js-sys]]
-version = "0.3.94"
+version = "0.3.95"
 criteria = "safe-to-deploy"
 
 [[exemptions.lazy_static]]
@@ -364,7 +364,7 @@ version = "1.5.0"
 criteria = "safe-to-run"
 
 [[exemptions.libc]]
-version = "0.2.184"
+version = "0.2.185"
 criteria = "safe-to-deploy"
 
 [[exemptions.linux-raw-sys]]
@@ -476,7 +476,7 @@ version = "5.3.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.rand]]
-version = "0.9.2"
+version = "0.9.4"
 criteria = "safe-to-deploy"
 
 [[exemptions.rand_chacha]]
@@ -612,7 +612,7 @@ version = "0.8.3"
 criteria = "safe-to-deploy"
 
 [[exemptions.tokio]]
-version = "1.51.1"
+version = "1.52.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.tokio-macros]]
@@ -696,19 +696,19 @@ version = "1.0.2+wasi-0.2.9"
 criteria = "safe-to-deploy"
 
 [[exemptions.wasm-bindgen]]
-version = "0.2.117"
+version = "0.2.118"
 criteria = "safe-to-deploy"
 
 [[exemptions.wasm-bindgen-macro]]
-version = "0.2.117"
+version = "0.2.118"
 criteria = "safe-to-deploy"
 
 [[exemptions.wasm-bindgen-macro-support]]
-version = "0.2.117"
+version = "0.2.118"
 criteria = "safe-to-deploy"
 
 [[exemptions.wasm-bindgen-shared]]
-version = "0.2.117"
+version = "0.2.118"
 criteria = "safe-to-deploy"
 
 [[exemptions.web-time]]

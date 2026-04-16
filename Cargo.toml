@@ -50,6 +50,9 @@ apalis-board = { version = "1.0.0-rc.6", features = ["axum"] }
 axum = { version = "0.8", features = ["macros", "json"] }
 tracing-subscriber = { version = "0.3.11", features = ["env-filter"] }
 tracing = "0.1"
+redis = { version = "1.0.4", default-features = false, features = [
+    "sentinel",
+] }
 
 [features]
 default = ["tokio-comp"]
