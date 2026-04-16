@@ -6,6 +6,7 @@ Background task processing for rust using `apalis` and `redis`
 
 - **Reliable task queue** using any `redis` compatible service as the backend.
 - **Multiple storage types**: standard polling and `pubsub` based approaches.
+- **Supports Redis Sentinel**: offering high availability.
 - **Customizable codecs** for serializing/deserializing task arguments such as `json`, `msgpack` and `bincode`.
 - **Heartbeat and orphaned tasks re-enqueueing** for consistent task processing.
 - **Integration with `apalis` workers and middleware** such as `retry`, `long_running` and `parallelize`
