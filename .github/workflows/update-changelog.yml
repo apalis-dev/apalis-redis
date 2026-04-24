@@ -2,15 +2,36 @@ on:
   pull_request:
     types: [ opened ]
 
-permissions:
-  contents: write
-
 jobs:
   update-changelog:
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@master
+      - name: Install Rust
+        run: rustup update stable && rustup default stable
+      - uses: actions/cache@v5
+        with:
+          path: ${{ runner.tool_cache }}/cargo-vet
+          key: cargo-vet-bin-${{ env.CARGO_VET_VERSION }}
+      - name: Add the tool cache directory to the search path
+        run: echo "${{ runner.tool_cache }}/cargo-vet/bin" >> $GITHUB_PATH
+      - name: Ensure that the tool cache is populated with the cargo-vet binary
+        run: cargo install --root ${{ runner.tool_cache }}/cargo-vet --version ${{
+          env.CARGO_VET_VERSION }} cargo-vet
+
+      - name: Setup git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Regenerate cargo vet exemptions
+        run: cargo vet regenerate exemptions
+
+      - name: Commit cargo-vet changes
+        run: |
+          git add supply-chain/*
+          git commit -m "vet: update cargo vet excemptions" || echo "No changes to commit"
 
       - name: Update CHANGELOG
         run: |
@@ -23,10 +44,10 @@ jobs:
           # Insert entry below [Unreleased]
           sed -i '/\[Unreleased\]/a\'"$CHANGELOG_ENTRY" CHANGELOG.md
 
-      - name: Commit changes
+      - name: Commit CHANGELOG changes
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add CHANGELOG.md
           git commit -m "docs: update CHANGELOG for PR #${{ github.event.pull_request.number }}" || echo "No changes to commit"
-          git push
+
+      - name: Push commits
+        run: git push
