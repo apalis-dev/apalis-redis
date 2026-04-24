@@ -2,6 +2,9 @@ on:
   pull_request:
     types: [ opened ]
 
+permissions:
+  contents: write
+
 jobs:
   update-changelog:
     if: github.event.pull_request.user.login == 'dependabot[bot]'
@@ -31,7 +34,7 @@ jobs:
       - name: Commit cargo-vet changes
         run: |
           git add supply-chain/*
-          git commit -m "vet: update cargo vet excemptions" || echo "No changes to commit"
+          git commit -m "vet: update cargo vet exemptions" || echo "No changes to commit"
 
       - name: Update CHANGELOG
         run: |
