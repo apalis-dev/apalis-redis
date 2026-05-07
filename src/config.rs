@@ -12,6 +12,7 @@ const TASK_DATA_HASH: &str = "{queue}:data";
 const JOB_META_HASH: &str = "{queue}:meta";
 const SCHEDULED_TASKS_SET: &str = "{queue}:scheduled";
 const SIGNAL_LIST: &str = "{queue}:signal";
+const IDEMPOTENCY_KEY_SET: &str = "{queue}:idempotency";
 
 /// Config for a [`RedisStorage`]
 ///
@@ -212,5 +213,10 @@ impl RedisConfig {
     pub fn set_reenqueue_orphaned_after(mut self, after: Duration) -> Self {
         self.reenqueue_orphaned_after = after;
         self
+    }
+
+    /// Gets the set used to store idempotency keys preventing duplicates
+    pub fn idempotency_key_set(&self) -> String {
+        IDEMPOTENCY_KEY_SET.replace("{queue}", self.queue.as_ref())
     }
 }

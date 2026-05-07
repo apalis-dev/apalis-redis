@@ -9,6 +9,8 @@ jobs:
   update-changelog:
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
+    env:
+      CARGO_VET_VERSION: 0.10.1
     steps:
       - uses: actions/checkout@master
       - name: Install Rust

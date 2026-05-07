@@ -46,13 +46,10 @@ where
             Ok(res)
         }
     }
-    fn fetch_by_queue(
-        &self,
-        queue_id: &str,
-    ) -> impl Future<Output = Result<Vec<Statistic>, Self::Error>> + Send {
+    fn fetch_by_queue(&self) -> impl Future<Output = Result<Vec<Statistic>, Self::Error>> + Send {
         let mut conn = self.conn.clone();
 
-        let queue_name = queue_id.to_string();
+        let queue_name = self.config.get_namespace().to_string();
         async move {
             let lua = include_str!("../../lua/overview_by_queue.lua");
             let script = Script::new(lua);

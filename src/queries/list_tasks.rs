@@ -17,11 +17,8 @@ where
     Args: 'static + Send + Sync,
     Conn: redis::aio::ConnectionLike + Send + Clone + Sync,
 {
-    async fn list_tasks(
-        &self,
-        queue: &str,
-        filter: &Filter,
-    ) -> Result<Vec<RedisTask<Args>>, Self::Error> {
+    async fn list_tasks(&self, filter: &Filter) -> Result<Vec<RedisTask<Args>>, Self::Error> {
+        let queue = self.config.get_namespace().to_string();
         let script = Script::new(include_str!("../../lua/list_tasks.lua"));
         let mut conn = self.conn.clone();
         let status_str = filter

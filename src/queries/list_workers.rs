@@ -17,11 +17,8 @@ where
     Args: 'static + Send,
     Conn: redis::aio::ConnectionLike + Send + Clone,
 {
-    fn list_workers(
-        &self,
-        queue: &str,
-    ) -> impl Future<Output = Result<Vec<RunningWorker>, Self::Error>> + Send {
-        let queue = queue.to_string();
+    fn list_workers(&self) -> impl Future<Output = Result<Vec<RunningWorker>, Self::Error>> + Send {
+        let queue = self.config.get_namespace().to_string();
         let mut conn = self.conn.clone();
         async move {
             let json: String = Script::new(include_str!("../../lua/list_workers.lua"))
