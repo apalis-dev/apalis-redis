@@ -1,0 +1,165 @@
+networks:
+  redis-cluster-compose:
+    driver: bridge
+
+services:
+  redis-node-1:
+    image: redis:latest
+    ports: ["6000:6000"]
+    hostname: redis-node-1
+    networks:
+      - redis-cluster-compose
+    command: >
+      redis-server
+      --port 6000
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --cluster-announce-ip redis-node-1
+      --cluster-announce-port 6000
+      --cluster-announce-bus-port 16000
+      --appendonly yes
+      --bind 0.0.0.0
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -p 6000 ping || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  redis-node-2:
+    image: redis:latest
+    ports: ["6001:6001"]
+    hostname: redis-node-2
+    networks:
+      - redis-cluster-compose
+    command: >
+      redis-server
+      --port 6001
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --cluster-announce-ip redis-node-2
+      --cluster-announce-port 6001
+      --cluster-announce-bus-port 16001
+      --appendonly yes
+      --bind 0.0.0.0
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -p 6001 ping || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  redis-node-3:
+    image: redis:latest
+    ports: ["6002:6002"]
+    hostname: redis-node-3
+    networks:
+      - redis-cluster-compose
+    command: >
+      redis-server
+      --port 6002
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --cluster-announce-ip redis-node-3
+      --cluster-announce-port 6002
+      --cluster-announce-bus-port 16002
+      --appendonly yes
+      --bind 0.0.0.0
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -p 6002 ping || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  redis-node-4:
+    image: redis:latest
+    ports: ["6003:6003"]
+    hostname: redis-node-4
+    networks:
+      - redis-cluster-compose
+    command: >
+      redis-server
+      --port 6003
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --cluster-announce-ip redis-node-4
+      --cluster-announce-port 6003
+      --cluster-announce-bus-port 16003
+      --appendonly yes
+      --bind 0.0.0.0
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -p 6003 ping || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  redis-node-5:
+    image: redis:latest
+    ports: ["6004:6004"]
+    hostname: redis-node-5
+    networks:
+      - redis-cluster-compose
+    command: >
+      redis-server
+      --port 6004
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --cluster-announce-ip redis-node-5
+      --cluster-announce-port 6004
+      --cluster-announce-bus-port 16004
+      --appendonly yes
+      --bind 0.0.0.0
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -p 6004 ping || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  redis-node-6:
+    image: redis:latest
+    ports: ["6005:6005"]
+    hostname: redis-node-6
+    networks:
+      - redis-cluster-compose
+    command: >
+      redis-server
+      --port 6005
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --cluster-announce-ip redis-node-6
+      --cluster-announce-port 6005
+      --cluster-announce-bus-port 16005
+      --appendonly yes
+      --bind 0.0.0.0
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -p 6005 ping || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  redis-cluster-creator:
+    image: redis:latest
+    networks:
+      - redis-cluster-compose
+    command: >
+      redis-cli -p 6000 --cluster create
+      redis-node-1:6000 redis-node-2:6001 redis-node-3:6002
+      redis-node-4:6003 redis-node-5:6004 redis-node-6:6005
+      --cluster-replicas 1 --cluster-yes
+    depends_on:
+      redis-node-1: { condition: service_healthy }
+      redis-node-2: { condition: service_healthy }
+      redis-node-3: { condition: service_healthy }
+      redis-node-4: { condition: service_healthy }
+      redis-node-5: { condition: service_healthy }
+      redis-node-6: { condition: service_healthy }

@@ -180,9 +180,12 @@ where
 
                 let now: i64 = Utc::now().timestamp();
 
+                let worker_metadata_key =
+                    format!("{}:workers:metadata", config.get_namespace().as_ref());
+
                 let res = register_worker
                     .key(workers_set)
-                    .key("core::apalis::workers:metadata::")
+                    .key(worker_metadata_key)
                     .arg(now)
                     .arg(inflight_set)
                     .arg(config.get_keep_alive().as_secs())
@@ -269,9 +272,12 @@ where
 
             let now: i64 = Utc::now().timestamp();
 
+            let worker_metadata_key =
+                format!("{}:workers:metadata", config.get_namespace().as_ref());
+
             register_worker
                 .key(workers_set)
-                .key("core::apalis::workers:metadata::")
+                .key(worker_metadata_key)
                 .arg(now)
                 .arg(inflight_set)
                 .arg(config.get_keep_alive().as_secs())
