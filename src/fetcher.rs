@@ -71,6 +71,8 @@ pub struct CompactTask<'a> {
     pub status: Status,
     /// The unique identifier for the task.
     pub task_id: TaskId<Ulid>,
+    /// A unique key to prevent duplicates
+    pub idempotency_key: Option<String>,
     /// Metadata associated with the task.
     pub meta: serde_json::Map<String, serde_json::Value>,
 }
@@ -83,13 +85,16 @@ impl CompactTask<'_> {
             lock_by: None,
             meta: self.meta,
         };
-        let task = Task::builder(self.data.clone())
+        let mut task = Task::builder(self.data.clone())
             .with_task_id(self.task_id)
             .with_status(self.status)
             .with_attempt(Attempt::new_with_value(self.attempts as usize))
-            .with_ctx(context)
-            .build();
-        Ok(task)
+            .with_ctx(context);
+
+        if let Some(key) = self.idempotency_key {
+            task = task.with_idempotency_key(key);
+        }
+        Ok(task.build())
     }
 
     /// Converts the task data into a full Task with decoded arguments.
@@ -106,13 +111,16 @@ impl CompactTask<'_> {
             lock_by: None,
             meta: self.meta,
         };
-        let task = Task::builder(args)
+        let mut task = Task::builder(args)
             .with_task_id(self.task_id)
             .with_status(self.status)
             .with_attempt(Attempt::new_with_value(self.attempts as usize))
-            .with_ctx(context)
-            .build();
-        Ok(task)
+            .with_ctx(context);
+
+        if let Some(key) = self.idempotency_key {
+            task = task.with_idempotency_key(key);
+        }
+        Ok(task.build())
     }
 }
 
@@ -179,8 +187,19 @@ pub fn deserialize_with_meta<'a>(
         let max_attempts = parse_u32(&meta_fields[4], "max_attempts")?;
         let status = Status::from_str(str_from_val(&meta_fields[6], "status")?)
             .map_err(|e| build_error(&e.to_string()))?;
+        let idempotency_key_raw =
+            String::from_str(str_from_val(&meta_fields[8], "idempotency_key")?)
+                .map_err(|e| build_error(&e.to_string()))?;
 
-        let meta = meta_fields[7..]
+        let idempotency_key = if idempotency_key_raw.is_empty() {
+            None
+        } else {
+            Some(idempotency_key_raw)
+        };
+
+        dbg!(&idempotency_key);
+
+        let meta = meta_fields[9..]
             .chunks(2)
             .filter_map(|chunk| {
                 if chunk.len() == 2 {
@@ -206,6 +225,7 @@ pub fn deserialize_with_meta<'a>(
             attempts,
             max_attempts,
             status,
+            idempotency_key,
             meta,
         });
     }

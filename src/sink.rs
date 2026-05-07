@@ -69,7 +69,8 @@ pub async fn push_tasks<Conn: ConnectionLike>(
         .key(config.active_jobs_list())
         .key(config.signal_list())
         .key(config.job_meta_hash())
-        .key(config.scheduled_jobs_set());
+        .key(config.scheduled_jobs_set())
+        .key(config.idempotency_key_set());
     for request in tasks {
         let task_id = request
             .parts
@@ -86,13 +87,16 @@ pub async fn push_tasks<Conn: ConnectionLike>(
         // Ensure run_at is not in the past
         let run_at = if run_at > current { run_at } else { current };
 
+        let idempotency_key = request.parts.idempotency_key.unwrap_or_default();
+
         script = script
             .arg(task_id)
             .arg(job)
             .arg(attempts)
             .arg(max_attempts)
             .arg(meta)
-            .arg(run_at);
+            .arg(run_at)
+            .arg(idempotency_key);
     }
 
     script
