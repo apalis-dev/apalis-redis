@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc.8] - 2026-05-08
+
 - *chore*: add sentinel example
 - *feat*: idempotency for tasks (#67)
 - *chore*: streamline vacuuming and examples (#68)
