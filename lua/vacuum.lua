@@ -1,26 +1,25 @@
--- Lua script to clean up data in Redis
+-- KEYS[1]: the task data hash
+-- KEYS[2]: the metadata prefix (e.g. "task_meta")
 
--- Define the keys
-local done_list_key = KEYS[1]
-local data_hash = KEYS[2]
+local terminal_statuses = { Done = true, Failed = true, Killed = true }
+local result_hash = KEYS[2] .. ":result"
 
--- Iterate through done_list
-local done_list_ids = redis.call('ZRANGE', done_list_key, 0, -1)
+local deleted = 0
 
--- Initialize a variable to count the number of removed items
-local removed_items_count = 0
+local fields = redis.call("hgetall", KEYS[1])
 
-for _, id in ipairs(done_list_ids) do
+-- fields is a flat list of [field, value, field, value, ...]
+for i = 1, #fields, 2 do
+  local task_id = fields[i]
+  local meta_key = KEYS[2] .. ':' .. task_id
+  local status = redis.call("hget", meta_key, "status")
 
-    local is_member = redis.call('HEXISTS', data_hash, id)
-    if is_member == 1 then
-        -- Remove entry from data_hash
-        redis.call('HDEL', data_hash, id)
-        removed_items_count = removed_items_count + 1
-    end
+  if status and terminal_statuses[status] then
+    redis.call("hdel", KEYS[1], task_id)
+    redis.call("hdel", result_hash, task_id)
+    redis.call("del", meta_key)
+    deleted = deleted + 1
+  end
 end
 
--- Clean the done_list
-redis.call('DEL', done_list_key)
-
-return removed_items_count
+return deleted
