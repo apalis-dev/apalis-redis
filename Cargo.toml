@@ -20,7 +20,7 @@ apalis-codec = "0.1.0-rc.9"
 apalis-core = { version = "1.0.0-rc.9", default-features = false, features = [
     "sleep",
 ] }
-redis = { version = "1.2.1", default-features = false, features = [
+redis = { version = "1.2.2", default-features = false, features = [
     "script",
     "aio",
     "connection-manager",
@@ -48,7 +48,7 @@ apalis-workflow = { version = "0.1.0-rc.9" }
 bincode = { version = "2.0.1", features = ["serde"] }
 tracing-subscriber = { version = "0.3.11", features = ["env-filter"] }
 tracing = "0.1"
-redis = { version = "1.0.4", default-features = false, features = [
+redis = { version = "1.2.2", default-features = false, features = [
     "sentinel",
 ] }
 
