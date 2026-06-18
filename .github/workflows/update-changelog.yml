@@ -4,6 +4,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   update-changelog:
@@ -13,6 +14,10 @@ jobs:
       CARGO_VET_VERSION: 0.10.1
     steps:
       - uses: actions/checkout@master
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
       - name: Install Rust
         run: rustup update stable && rustup default stable
       - uses: actions/cache@v5
@@ -29,6 +34,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update Cargo.lock
+        run: cargo update
 
       - name: Regenerate cargo vet exemptions
         run: cargo vet regenerate exemptions
@@ -55,4 +63,4 @@ jobs:
           git commit -m "docs: update CHANGELOG for PR #${{ github.event.pull_request.number }}" || echo "No changes to commit"
 
       - name: Push commits
-        run: git push
+        run: git push origin HEAD:${{ github.event.pull_request.head.ref }}
