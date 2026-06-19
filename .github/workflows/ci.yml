@@ -6,7 +6,17 @@ permissions:
 on:
   push:
     branches: [main, develop]
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "**/*.rs"
+      - "**/*.lua"
   pull_request:
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "**/*.rs"
+      - "**/*.lua"
   workflow_call:
 
 env:
