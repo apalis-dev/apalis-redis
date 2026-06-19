@@ -1,6 +1,8 @@
+name: Update Changelog
+
 on:
   pull_request:
-    types: [ opened ]
+    types: [opened, reopened, synchronize]
 
 permissions:
   contents: write
@@ -10,8 +12,10 @@ jobs:
   update-changelog:
     if: contains(github.event.pull_request.head.ref, 'dependabot/')
     runs-on: ubuntu-latest
+
     env:
       CARGO_VET_VERSION: 0.10.1
+
     steps:
       - uses: actions/checkout@master
         with:
@@ -19,24 +23,29 @@ jobs:
           fetch-depth: 0
 
       - name: Install Rust
-        run: rustup update stable && rustup default stable
-      - uses: actions/cache@v5
+        run: |
+          rustup update stable
+          rustup default stable
+
+      - uses: actions/cache@v4
         with:
           path: ${{ runner.tool_cache }}/cargo-vet
           key: cargo-vet-bin-${{ env.CARGO_VET_VERSION }}
-      - name: Add the tool cache directory to the search path
-        run: echo "${{ runner.tool_cache }}/cargo-vet/bin" >> $GITHUB_PATH
-      - name: Ensure that the tool cache is populated with the cargo-vet binary
-        run: cargo install --root ${{ runner.tool_cache }}/cargo-vet --version ${{
-          env.CARGO_VET_VERSION }} cargo-vet
+
+      - name: Add the tool cache directory to PATH
+        run: echo "${{ runner.tool_cache }}/cargo-vet/bin" >> "$GITHUB_PATH"
+
+      - name: Ensure cargo-vet is installed
+        run: |
+          cargo install \
+            --root "${{ runner.tool_cache }}/cargo-vet" \
+            --version "${{ env.CARGO_VET_VERSION }}" \
+            cargo-vet
 
       - name: Setup git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Update Cargo.lock
-        run: cargo update
 
       - name: Regenerate cargo vet exemptions
         run: cargo vet regenerate exemptions
@@ -50,12 +59,33 @@ jobs:
         run: |
           PR_TITLE="${{ github.event.pull_request.title }}"
           PR_NUMBER="${{ github.event.pull_request.number }}"
+          REPO="${{ github.repository }}"
 
-          # Format: - deps(scope): description (#PR_NUMBER)
-          CHANGELOG_ENTRY="- $PR_TITLE (#$PR_NUMBER)"
+          FORMATTED_TITLE="$(echo "$PR_TITLE" | sed -E 's/^([a-zA-Z0-9_-]+):/*\1*:/')"
 
-          # Insert entry below [Unreleased]
-          sed -i '/\[Unreleased\]/a\'"$CHANGELOG_ENTRY" CHANGELOG.md
+          CHANGELOG_ENTRY="- ${FORMATTED_TITLE} ([#${PR_NUMBER}](https://github.com/${REPO}/pull/${PR_NUMBER}))"
+
+          awk -v entry="$CHANGELOG_ENTRY" '
+          /^## \[Unreleased\]$/ {
+              print
+              print ""
+              print entry
+              skip_blank=1
+              next
+          }
+
+          skip_blank && /^$/ {
+              skip_blank=0
+              next
+          }
+
+          {
+              skip_blank=0
+              print
+          }
+          ' CHANGELOG.md > CHANGELOG.md.tmp
+
+          mv CHANGELOG.md.tmp CHANGELOG.md
 
       - name: Commit CHANGELOG changes
         run: |
