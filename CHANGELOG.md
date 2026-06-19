@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - *temp*: test dependabot changelog in dummy pr ([#83](https://github.com/apalis-dev/apalis-redis/pull/83))
+- *temp*: test dependabot changelog in dummy pr ([#83](https://github.com/apalis-dev/apalis-redis/pull/83))
 - *fix*: update change log to add CHANGELOG commits
 
 ## [1.0.0-rc.8] - 2026-05-08
