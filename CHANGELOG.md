@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- ci(deps): bump codecov/codecov-action from 6 to 7 ([#78](https://github.com/apalis-dev/apalis-redis/pull/78))
 - deps(deps): bump tokio from 1.52.2 to 1.52.3 ([#71](https://github.com/apalis-dev/apalis-redis/pull/71))
 - *chore*: improve the changelog generation process on prs ([#84](https://github.com/apalis-dev/apalis-redis/pull/84))
 - *fix*: update change log to add CHANGELOG commits
