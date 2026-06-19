@@ -1,6 +1,8 @@
+name: Update Changelog
+
 on:
   pull_request:
-    types: [ opened ]
+    types: [opened, edited]
 
 permissions:
   contents: write
@@ -8,54 +10,76 @@ permissions:
 
 jobs:
   update-changelog:
-    if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
-    env:
-      CARGO_VET_VERSION: 0.10.1
+
     steps:
       - uses: actions/checkout@master
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
-      - name: Install Rust
-        run: rustup update stable && rustup default stable
-      - uses: actions/cache@v5
-        with:
-          path: ${{ runner.tool_cache }}/cargo-vet
-          key: cargo-vet-bin-${{ env.CARGO_VET_VERSION }}
-      - name: Add the tool cache directory to the search path
-        run: echo "${{ runner.tool_cache }}/cargo-vet/bin" >> $GITHUB_PATH
-      - name: Ensure that the tool cache is populated with the cargo-vet binary
-        run: cargo install --root ${{ runner.tool_cache }}/cargo-vet --version ${{
-          env.CARGO_VET_VERSION }} cargo-vet
-
       - name: Setup git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Update Cargo.lock
-        run: cargo update
-
-      - name: Regenerate cargo vet exemptions
-        run: cargo vet regenerate exemptions
-
-      - name: Commit cargo-vet changes
-        run: |
-          git add supply-chain/*
-          git commit -m "vet: update cargo vet exemptions" || echo "No changes to commit"
-
       - name: Update CHANGELOG
         run: |
           PR_TITLE="${{ github.event.pull_request.title }}"
           PR_NUMBER="${{ github.event.pull_request.number }}"
+          REPO="${{ github.repository }}"
+          EVENT="${{ github.event.action }}"
 
-          # Format: - deps(scope): description (#PR_NUMBER)
-          CHANGELOG_ENTRY="- $PR_TITLE (#$PR_NUMBER)"
+          FORMATTED_TITLE="$(echo "$PR_TITLE" | sed -E 's/^([a-zA-Z0-9_-]+):/*\1*:/')"
+          CHANGELOG_ENTRY="- ${FORMATTED_TITLE} ([#${PR_NUMBER}](https://github.com/${REPO}/pull/${PR_NUMBER}))"
 
-          # Insert entry below [Unreleased]
-          sed -i '/\[Unreleased\]/a\'"$CHANGELOG_ENTRY" CHANGELOG.md
+          # Pattern to match an existing entry for this PR number (anywhere in the file)
+          PR_PATTERN="(#${PR_NUMBER})"
+
+          if [ "$EVENT" = "opened" ]; then
+            # On open: only insert if no entry for this PR number already exists
+            if grep -qF "$PR_PATTERN" CHANGELOG.md; then
+              echo "Changelog entry for #${PR_NUMBER} already exists, skipping."
+            else
+              awk -v entry="$CHANGELOG_ENTRY" '
+                /^## \[Unreleased\]$/ {
+                  print
+                  print ""
+                  print entry
+                  skip_blank=1
+                  next
+                }
+                skip_blank && /^$/ { skip_blank=0; next }
+                { skip_blank=0; print }
+              ' CHANGELOG.md > CHANGELOG.md.tmp
+              mv CHANGELOG.md.tmp CHANGELOG.md
+            fi
+
+          elif [ "$EVENT" = "edited" ]; then
+            # On edit: replace the existing entry, or insert if it doesn't exist yet
+            if grep -qF "$PR_PATTERN" CHANGELOG.md; then
+              # Replace the specific line that references this PR number
+              awk -v entry="$CHANGELOG_ENTRY" -v pattern="$PR_PATTERN" '
+                index($0, pattern) { print entry; next }
+                { print }
+              ' CHANGELOG.md > CHANGELOG.md.tmp
+              mv CHANGELOG.md.tmp CHANGELOG.md
+            else
+              echo "No existing entry for #${PR_NUMBER}, inserting under [Unreleased]."
+              awk -v entry="$CHANGELOG_ENTRY" '
+                /^## \[Unreleased\]$/ {
+                  print
+                  print ""
+                  print entry
+                  skip_blank=1
+                  next
+                }
+                skip_blank && /^$/ { skip_blank=0; next }
+                { skip_blank=0; print }
+              ' CHANGELOG.md > CHANGELOG.md.tmp
+              mv CHANGELOG.md.tmp CHANGELOG.md
+            fi
+          fi
 
       - name: Commit CHANGELOG changes
         run: |
