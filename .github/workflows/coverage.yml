@@ -6,8 +6,22 @@ permissions:
 on:
   push:
     branches: [main]
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "**/*.rs"
+      - "**/*.lua"
   pull_request:
     branches: [main]
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "**/*.rs"
+      - "**/*.lua"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.pull_request.title }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always

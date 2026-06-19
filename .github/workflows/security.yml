@@ -13,6 +13,10 @@ on:
       - "**/Cargo.toml"
       - "**/Cargo.lock"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.pull_request.title }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -43,6 +47,7 @@ jobs:
   vet:
     name: cargo-vet
     runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
     env:
       CARGO_VET_VERSION: 0.10.1
     steps:
