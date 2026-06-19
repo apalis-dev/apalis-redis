@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- deps(deps): bump log from 0.4.29 to 0.4.32 ([#77](https://github.com/apalis-dev/apalis-redis/pull/77))
 ## [1.0.0-rc.8] - 2026-05-08
 
 - *chore*: add sentinel example
