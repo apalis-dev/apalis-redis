@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- ci(deps): bump actions/cache from 5 to 6 ([#87](https://github.com/apalis-dev/apalis-redis/pull/87))
 - deps(deps): bump log from 0.4.32 to 0.4.33 ([#86](https://github.com/apalis-dev/apalis-redis/pull/86))
 - ci(deps): bump actions/checkout from 6 to 7 ([#85](https://github.com/apalis-dev/apalis-redis/pull/85))
 - ci(deps) : bump pozil/auto-assign-issue from 3 to 4 ([#80](https://github.com/apalis-dev/apalis-redis/pull/80))
