@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- deps(deps): bump tokio from 1.52.3 to 1.53.0 ([#92](https://github.com/apalis-dev/apalis-redis/pull/92))
 - deps(deps): bump redis from 1.2.4 to 1.3.0 ([#88](https://github.com/apalis-dev/apalis-redis/pull/88))
 - ci(deps): bump actions/cache from 5 to 6 ([#87](https://github.com/apalis-dev/apalis-redis/pull/87))
 - deps(deps): bump log from 0.4.32 to 0.4.33 ([#86](https://github.com/apalis-dev/apalis-redis/pull/86))
