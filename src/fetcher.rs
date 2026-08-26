@@ -187,9 +187,7 @@ pub fn deserialize_with_meta<'a>(
         let max_attempts = parse_u32(&meta_fields[4], "max_attempts")?;
         let status = Status::from_str(str_from_val(&meta_fields[6], "status")?)
             .map_err(|e| build_error(&e.to_string()))?;
-        let idempotency_key_raw =
-            String::from_str(str_from_val(&meta_fields[8], "idempotency_key")?)
-                .map_err(|e| build_error(&e.to_string()))?;
+        let idempotency_key_raw = str_from_val(&meta_fields[8], "idempotency_key")?.to_owned();
 
         let idempotency_key = if idempotency_key_raw.is_empty() {
             None
