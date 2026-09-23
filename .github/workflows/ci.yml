@@ -62,7 +62,7 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Run cargo test with all features
-        run: cargo test --all-features --verbose
+        run: cargo test --all-features --verbose -- --test-threads=1 
 
   fmt:
     name: Rustfmt

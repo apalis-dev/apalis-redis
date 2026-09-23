@@ -1,8 +1,8 @@
 use std::{env, fmt::Debug, time::Duration};
 
 use apalis::prelude::*;
-use apalis_redis::{RedisConfig, RedisStorage};
-use apalis_workflow::{Workflow, WorkflowSink};
+use apalis_redis::{Config, RedisStorage};
+use apalis_workflow::SteppedFlow;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -35,37 +35,36 @@ async fn campaign(req: CampaignEmail, _ctx: Data<()>) -> Result<CompleteCampaign
     })
 }
 
-async fn complete_campaign(_req: CompleteCampaign, _ctx: Data<()>) -> Result<String, BoxDynError> {
+async fn complete_campaign(
+    _req: CompleteCampaign,
+    worker: WorkerContext,
+) -> Result<String, BoxDynError> {
+    worker.stop()?;
     Ok::<_, _>("Completed job successfully".to_string())
 }
 
 #[tokio::main]
 async fn main() -> Result<(), BoxDynError> {
     unsafe {
-        std::env::set_var("RUST_LOG", "debug");
+        std::env::set_var("RUST_LOG", "info");
     };
     tracing_subscriber::fmt::init();
     let conn = apalis_redis::connect(env::var("REDIS_URL").unwrap())
         .await
         .unwrap();
-    let mut backend = RedisStorage::new_with_config(
-        conn,
-        RedisConfig::default()
-            .set_namespace("redis_stepped_worker")
-            .set_buffer_size(100),
-    );
-    backend
-        .push_start(WelcomeEmail { user_id: 1 })
-        .await
-        .unwrap();
+    let config = Config::default().queue("simple-campaign");
+    let mut backend = RedisStorage::new(conn)
+        .with_config(config)
+        .poll_with_interval(Duration::from_secs(1));
+    backend.push(WelcomeEmail { user_id: 1 }).await.unwrap();
 
-    let workflow = Workflow::new("stepped-workflow")
+    let workflow = SteppedFlow::new("simple-campaign-workflow")
         .and_then(welcome)
         .delay_for(Duration::from_secs(1))
         .and_then(campaign)
         .and_then(complete_campaign);
 
-    WorkerBuilder::new("redis-stepped-worker")
+    WorkerBuilder::new("simple-campaign-worker")
         .backend(backend)
         .data(())
         .enable_tracing()

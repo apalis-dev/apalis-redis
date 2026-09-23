@@ -1,10 +1,10 @@
-local queues = redis.call("zrange", "core::apalis::queues::list", 0, -1)
+local queues = redis.call("zrange", "core:apalis:queues:list", 0, -1)
 local result = {}
 
 for _, queue_key in ipairs(queues) do
     local workers = redis.call("zrange", queue_key, 0, -1, "WITHSCORES")
     -- Derive metadata key from queue key, same pattern as registration
-    local meta_key = queue_key .. ":workers:metadata"
+    local meta_key = queue_key .. ":workers:metadata:"
 
     for i = 1, #workers, 2 do
         local name = workers[i]

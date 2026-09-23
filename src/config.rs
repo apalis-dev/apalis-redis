@@ -1,6 +1,9 @@
 use std::time::Duration;
 
-use apalis_core::backend::queue::Queue;
+use apalis_core::worker::context::WorkerContext;
+use serde::{Deserialize, Serialize};
+
+pub(crate) use apalis_core::backend::queue::Queue;
 
 const ACTIVE_TASKS_LIST: &str = "{queue}:active";
 const WORKERS_SET: &str = "{queue}:workers";
@@ -14,96 +17,307 @@ const SCHEDULED_TASKS_SET: &str = "{queue}:scheduled";
 const SIGNAL_LIST: &str = "{queue}:signal";
 const IDEMPOTENCY_KEY_SET: &str = "{queue}:idempotency";
 
-/// Config for a [`RedisStorage`]
+/// Configuration for a worker's queue, batching, and liveness detection.
 ///
-/// RedisConfig allows you to customize various settings for the Redis storage backend,
-/// including polling intervals, buffer sizes, namespaces, and job re-enqueueing behavior.
+/// `Config` controls how jobs are fetched from a queue and how worker
+/// liveness is monitored.
 ///
-/// [`RedisStorage`]: crate::RedisStorage
-#[derive(Clone, Debug)]
-pub struct RedisConfig {
-    poll_interval: Duration,
-    buffer_size: usize,
-    keep_alive: Duration,
-    enqueue_scheduled: Duration,
-    reenqueue_orphaned_after: Duration,
-    queue: Queue,
+/// # Defaults
+///
+/// - `batch_size`: `10`
+/// - `heartbeat_interval`: `30` seconds
+/// - `missed_heartbeats`: `2`
+/// - `queue`: `"default"`
+/// - `database_url`: `None`
+/// - `lock_tasks`: `true`
+/// - `persist_results`: `true`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Config {
+    /// The maximum number of jobs fetched in a single batch.
+    ///
+    /// Must be greater than zero.
+    #[serde(default = "default_batch_size")]
+    pub batch_size: usize,
+
+    /// The interval between worker heartbeats.
+    #[serde(default = "default_heartbeat_interval")]
+    pub heartbeat_interval: Duration,
+
+    /// The number of missed heartbeats allowed before a worker is
+    /// considered dead.
+    #[serde(default = "default_missed_heartbeats")]
+    pub missed_heartbeats: usize,
+
+    /// The queue from which jobs are consumed.
+    pub queue: Queue,
+
+    /// An optional database URL used by the worker.
+    pub database_url: Option<String>,
+
+    /// Whether tasks should be locked while being processed.
+    #[serde(default = "default_events")]
+    pub lock_tasks: bool,
+
+    /// Whether job results should be persisted.
+    #[serde(default = "default_events")]
+    pub persist_results: bool,
+
+    /// Whether to emit task events via pubsub
+    #[serde(default = "default_events")]
+    pub emit_events: bool,
+
+    /// How long an idempotency key should be retained.
+    ///
+    /// When `None`, idempotency keys do not expire.
+    /// When `Some(duration)`, the key expires after the configured duration.
+    #[serde(default)]
+    pub idempotency_ttl: Option<Duration>,
 }
 
-impl Default for RedisConfig {
+impl Default for Config {
     fn default() -> Self {
         Self {
-            poll_interval: Duration::from_millis(100),
-            buffer_size: 10,
-            keep_alive: Duration::from_secs(30),
-            enqueue_scheduled: Duration::from_secs(1),
-            reenqueue_orphaned_after: Duration::from_secs(300),
+            batch_size: 10,
+            heartbeat_interval: Duration::from_secs(30),
+            missed_heartbeats: 10,
             queue: Queue::from("default"),
+            database_url: None,
+            lock_tasks: true,
+            persist_results: true,
+            emit_events: true,
+            idempotency_ttl: None,
         }
     }
 }
 
-impl RedisConfig {
-    /// Creates a new RedisConfig with the specified queue namespace.
-    pub fn new(queue: &str) -> Self {
-        Self {
-            queue: Queue::from(queue),
-            ..Default::default()
-        }
-    }
-    /// Get the interval of polling
-    pub fn get_poll_interval(&self) -> &Duration {
-        &self.poll_interval
-    }
+fn default_batch_size() -> usize {
+    10
+}
 
-    /// Get the number of jobs to fetch
-    pub fn get_buffer_size(&self) -> usize {
-        self.buffer_size
-    }
+fn default_heartbeat_interval() -> Duration {
+    Duration::from_secs(30)
+}
 
-    /// get the keep live rate
-    pub fn get_keep_alive(&self) -> &Duration {
-        &self.keep_alive
-    }
+fn default_missed_heartbeats() -> usize {
+    2
+}
 
-    /// get the enqueued setting
-    pub fn get_enqueue_scheduled(&self) -> &Duration {
-        &self.enqueue_scheduled
-    }
+fn default_events() -> bool {
+    true
+}
 
-    /// get the namespace
-    pub fn get_namespace(&self) -> &Queue {
-        &self.queue
-    }
-
-    /// get the poll interval
-    pub fn set_poll_interval(mut self, poll_interval: Duration) -> Self {
-        self.poll_interval = poll_interval;
+impl Config {
+    /// Sets the maximum number of jobs to fetch in a single batch.
+    ///
+    /// Larger batches can improve throughput by reducing the number of
+    /// queue operations, while smaller batches can reduce memory usage
+    /// and improve job distribution between workers.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `size` is `0`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use apalis_redis::Config;
+    ///
+    /// let config = Config::default().batch_size(50);
+    ///
+    /// assert_eq!(config.batch_size, 50);
+    /// ```
+    #[must_use]
+    pub fn batch_size(mut self, size: usize) -> Self {
+        assert!(size > 0, "batch size cannot be 0");
+        self.batch_size = size;
         self
     }
 
-    /// set the buffer setting
-    pub fn set_buffer_size(mut self, buffer_size: usize) -> Self {
-        self.buffer_size = buffer_size;
+    /// Sets the interval between worker heartbeats.
+    ///
+    /// A shorter interval detects failed workers sooner but produces
+    /// heartbeat activity more frequently.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use apalis_redis::Config;
+    /// use std::time::Duration;
+    ///
+    /// let config = Config::default()
+    ///     .heartbeat_interval(Duration::from_secs(15));
+    ///
+    /// assert_eq!(config.heartbeat_interval, Duration::from_secs(15));
+    /// ```
+    #[must_use]
+    pub fn heartbeat_interval(mut self, interval: Duration) -> Self {
+        self.heartbeat_interval = interval;
         self
     }
 
-    /// set the keep-alive setting
-    pub fn set_keep_alive(mut self, keep_alive: Duration) -> Self {
-        self.keep_alive = keep_alive;
+    /// Sets the queue from which jobs are consumed.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use apalis_redis::Config;
+    /// let config = Config::default()
+    ///     .queue("high-priority");
+    ///
+    /// assert_eq!(config.queue.as_ref(), "high-priority");
+    /// ```
+    #[must_use]
+    pub fn queue(mut self, queue: impl AsRef<str>) -> Self {
+        self.queue = Queue::from(queue.as_ref());
         self
     }
 
-    /// get the enqueued setting
-    pub fn set_enqueue_scheduled(mut self, enqueue_scheduled: Duration) -> Self {
-        self.enqueue_scheduled = enqueue_scheduled;
+    /// Sets the number of missed heartbeats allowed before a worker is
+    /// considered dead.
+    ///
+    /// This value works together with [`Self::heartbeat_interval`].
+    /// For example, a 30-second heartbeat interval with `2` missed
+    /// heartbeats results in an orphan timeout of 60 seconds.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use apalis_redis::Config;
+    /// use std::time::Duration;
+    ///
+    /// let config = Config::default().missed_heartbeats(3);
+    ///
+    /// assert_eq!(config.missed_heartbeats, 3);
+    /// assert_eq!(
+    ///     config.orphaned_duration(),
+    ///     Duration::from_secs(90)
+    /// );
+    /// ```
+    #[must_use]
+    pub fn missed_heartbeats(mut self, missed_heartbeats: usize) -> Self {
+        self.missed_heartbeats = missed_heartbeats;
         self
     }
 
-    /// set the namespace for the Storage
-    pub fn set_namespace(mut self, namespace: &str) -> Self {
-        self.queue = Queue::from(namespace);
+    /// Sets the database URL used by the worker.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use apalis_redis::Config;
+    ///
+    /// let config = Config::default()
+    ///     .database_url("redis://localhost/1");
+    ///
+    /// assert_eq!(
+    ///     config.database_url.as_deref(),
+    ///     Some("redis://localhost/1")
+    /// );
+    /// ```
+    #[must_use]
+    pub fn database_url(mut self, database_url: impl Into<String>) -> Self {
+        self.database_url = Some(database_url.into());
         self
+    }
+
+    /// Enables or disables task locking and worker lease management.
+    ///
+    /// When enabled, tasks are locked while being processed to prevent
+    /// multiple workers from processing the same task concurrently.
+    ///
+    /// This can be turned off for tasks that last shorter than a worker heartbeat as lease renewal will not be helpful
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use apalis_redis::Config;
+    ///
+    /// let config = Config::default().lock_tasks(false);
+    ///
+    /// assert!(!config.lock_tasks);
+    /// ```
+    #[must_use]
+    pub fn lock_tasks(mut self, lock_tasks: bool) -> Self {
+        self.lock_tasks = lock_tasks;
+        self
+    }
+
+    /// Enables or disables emitting pubsub events such as task events.
+    ///
+    /// When enabled, task and worker events will be emitted via pubsub
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use apalis_redis::Config;
+    ///
+    /// let config = Config::default().emit_events(false);
+    ///
+    /// assert!(!config.emit_events);
+    /// ```
+    #[must_use]
+    pub fn emit_events(mut self, emit_events: bool) -> Self {
+        self.emit_events = emit_events;
+        self
+    }
+
+    /// Enables or disables result persistence.
+    ///
+    /// When enabled, results produced by completed tasks are persisted.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use apalis_redis::Config;
+    ///
+    /// let config = Config::default().persist_results(false);
+    ///
+    /// assert!(!config.persist_results);
+    /// ```
+    #[must_use]
+    pub fn persist_results(mut self, persist_results: bool) -> Self {
+        self.persist_results = persist_results;
+        self
+    }
+
+    /// Sets the time-to-live for task idempotency keys.
+    ///
+    /// When configured, idempotency keys expire after the specified
+    /// duration, allowing a task with the same key to be enqueued again.
+    ///
+    /// Use `None` to disable expiration.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use apalis_redis::Config;
+    /// use std::time::Duration;
+    ///
+    /// let config = Config::default()
+    ///     .idempotency_ttl(Some(Duration::from_secs(3600)));
+    ///
+    /// assert_eq!(
+    ///     config.idempotency_ttl,
+    ///     Some(Duration::from_secs(3600))
+    /// );
+    /// ```
+    #[must_use]
+    pub fn idempotency_ttl(mut self, ttl: Option<Duration>) -> Self {
+        self.idempotency_ttl = ttl;
+        self
+    }
+
+    /// Returns the amount of time after which a worker may be considered
+    /// orphaned.
+    ///
+    /// The duration is calculated as:
+    ///
+    /// ```text
+    /// heartbeat_interval × missed_heartbeats
+    /// ```
+    #[must_use]
+    pub fn orphaned_duration(&self) -> Duration {
+        self.heartbeat_interval * self.missed_heartbeats as u32
     }
 
     /// Returns the Redis key for the list of pending jobs associated with the queue.
@@ -122,6 +336,11 @@ impl RedisConfig {
     /// A `String` representing the Redis key for the workers set.
     pub fn workers_set(&self) -> String {
         WORKERS_SET.replace("{queue}", self.queue.as_ref())
+    }
+
+    /// Returns the Redis key for the workers metadata key.
+    pub fn worker_metadata_key(&self) -> String {
+        format!("{}:workers:", self.queue.as_ref())
     }
 
     /// Returns the Redis key for the set of dead jobs associated with the queue.
@@ -160,6 +379,11 @@ impl RedisConfig {
         INFLIGHT_TASKS_SET.replace("{queue}", self.queue.as_ref())
     }
 
+    /// Returns the unique inflight set.
+    pub fn inflight_worker_id(&self, worker: &WorkerContext) -> String {
+        format!("{}:{}", self.inflight_jobs_set(), worker.name())
+    }
+
     /// Returns the Redis key for the hash storing job data associated with the queue.
     /// The key is dynamically generated using the namespace of the queue.
     ///
@@ -194,25 +418,6 @@ impl RedisConfig {
     /// A `String` representing the Redis key for the signal list.
     pub fn signal_list(&self) -> String {
         SIGNAL_LIST.replace("{queue}", self.queue.as_ref())
-    }
-
-    /// Gets the reenqueue_orphaned_after duration.
-    pub fn reenqueue_orphaned_after(&self) -> Duration {
-        self.reenqueue_orphaned_after
-    }
-
-    /// Gets a mutable reference to the reenqueue_orphaned_after.
-    pub fn reenqueue_orphaned_after_mut(&mut self) -> &mut Duration {
-        &mut self.reenqueue_orphaned_after
-    }
-
-    /// Occasionally some workers die, or abandon jobs because of panics.
-    /// This is the time a task takes before its back to the queue
-    ///
-    /// Defaults to 5 minutes
-    pub fn set_reenqueue_orphaned_after(mut self, after: Duration) -> Self {
-        self.reenqueue_orphaned_after = after;
-        self
     }
 
     /// Gets the set used to store idempotency keys preventing duplicates

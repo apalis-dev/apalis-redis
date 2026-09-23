@@ -1,7 +1,7 @@
 use std::env;
 
 use apalis::prelude::*;
-use apalis_redis::{RedisConfig, RedisContext, RedisStorage};
+use apalis_redis::{Config, RedisStorage};
 use redis::sentinel::Sentinel;
 
 #[tokio::main]
@@ -21,16 +21,14 @@ async fn main() {
 
     let conn = client.get_connection_manager().await.unwrap();
 
-    let mut backend = RedisStorage::new_with_config(
-        conn,
-        RedisConfig::default()
-            .set_namespace("redis_sentinel_worker")
-            .set_buffer_size(100),
-    );
+    let config = Config::default()
+        .queue("redis_sentinel_worker")
+        .batch_size(100);
+    let mut backend = RedisStorage::new(conn).with_config(config);
 
     backend.push(42).await.unwrap();
 
-    async fn task(task: u32, ctx: RedisContext, wrk: WorkerContext) -> Result<(), BoxDynError> {
+    async fn task(task: u32, ctx: TaskContext, wrk: WorkerContext) -> Result<(), BoxDynError> {
         let handle = std::thread::current();
         println!("{task:?}, {ctx:?}, Thread: {:?}", handle.id());
         wrk.stop().unwrap();

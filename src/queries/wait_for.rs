@@ -1,38 +1,26 @@
-use apalis_core::backend::codec::Codec;
 use apalis_core::backend::{TaskResult, WaitForCompletion};
-use apalis_core::error::BoxDynError;
 use apalis_core::task::status::Status;
 use apalis_core::task::task_id::TaskId;
 use apalis_core::timer::sleep;
 use futures::stream::{self, BoxStream, StreamExt};
 use redis::aio::ConnectionLike;
+use serde::de::DeserializeOwned;
 use std::collections::HashSet;
 use std::str::FromStr;
 use std::time::Duration;
-use ulid::Ulid;
 
+use crate::error::Error;
 use crate::{RedisStorage, build_error};
 
-impl<Res, Args, Conn, Decode, Err> WaitForCompletion<Res> for RedisStorage<Args, Conn, Decode>
+impl<Res, Args, Conn> WaitForCompletion<Res> for RedisStorage<Args, Conn>
 where
     Args: Unpin + Send + Sync + 'static,
-    Conn: Clone + ConnectionLike + Send + Sync + 'static,
-    Decode: Codec<Args, Compact = Vec<u8>, Error = Err>
-        + Codec<Result<Res, String>, Compact = Vec<u8>, Error = Err>
-        + Send
-        + Sync
-        + Unpin
-        + 'static
-        + Clone,
-    Err: Into<BoxDynError> + Send + 'static,
-    Res: Send + 'static,
+    Conn: ConnectionLike + Send + Sync + 'static + Clone,
+    Res: Send + DeserializeOwned + 'static,
 {
-    type ResultStream = BoxStream<'static, Result<TaskResult<Res, Ulid>, Self::Error>>;
+    type ResultStream = BoxStream<'static, Result<TaskResult<Res>, Error>>;
 
-    fn wait_for(
-        &self,
-        task_ids: impl IntoIterator<Item = TaskId<Self::IdType>>,
-    ) -> Self::ResultStream {
+    fn wait_for(&self, task_ids: impl IntoIterator<Item = TaskId>) -> Self::ResultStream {
         let storage = self.clone();
         let pending_ids: HashSet<_> = task_ids.into_iter().map(|id| id.to_string()).collect();
 
@@ -46,8 +34,7 @@ where
                 // Poll for completed tasks
                 let ids_to_check: Vec<_> = pending_ids
                     .iter()
-                    .cloned()
-                    .map(|t| TaskId::from_str(&t).unwrap())
+                    .map(|t| TaskId::from_str(t).unwrap())
                     .collect();
 
                 match storage.check_status(ids_to_check).await {
@@ -81,20 +68,20 @@ where
 
     async fn check_status(
         &self,
-        task_ids: impl IntoIterator<Item = TaskId<Self::IdType>> + Send,
-    ) -> Result<Vec<TaskResult<Res, Ulid>>, Self::Error> {
+        task_ids: impl IntoIterator<Item = TaskId> + Send,
+    ) -> Result<Vec<TaskResult<Res>>, Self::Error> {
         use redis::AsyncCommands;
         let task_ids: Vec<_> = task_ids.into_iter().collect();
         if task_ids.is_empty() {
             return Ok(vec![]);
         }
 
-        let mut conn = self.conn.clone();
+        let mut conn = self.persist.conn.clone();
         let mut results = Vec::new();
 
         for task_id in task_ids {
             let task_id_str = task_id.to_string();
-            let task_meta_key = format!("{}:{}", self.config.job_meta_hash(), task_id_str);
+            let task_meta_key = format!("{}:{}", self.persist.config.job_meta_hash(), task_id_str);
 
             // Check if task has a status (Done or Failed)
             let status: Option<String> = conn.hget(&task_meta_key, "status").await?;
@@ -104,20 +91,21 @@ where
                     .map_err(|e| build_error(e.to_string().as_str()))?;
 
                 // Fetch the serialized result
-                let result_ns = format!("{}:result", self.config.job_meta_hash());
                 let serialized_result: Option<Vec<u8>> =
-                    conn.hget(&result_ns, &task_id_str).await?;
+                    conn.hget(&task_meta_key, "result").await?;
+                let attempt: Option<usize> = conn.hget(&task_meta_key, "attempts").await?;
 
                 if let Some(data) = serialized_result {
                     // Deserialize the Result<Res, String>
-                    let result: Result<Res, String> = Decode::decode(&data)
-                        .map_err(|e: Err| build_error(e.into().to_string().as_str()))?;
+                    let result: Result<Res, String> =
+                        serde_json::from_slice(&data).map_err(Error::Json)?;
 
-                    results.push(TaskResult::new(
-                        TaskId::from_str(&task_id.to_string()).unwrap(),
+                    results.push(TaskResult {
+                        task_id: TaskId::from_str(&task_id.to_string()).unwrap(),
+                        attempt: attempt.unwrap_or(1),
                         status,
                         result,
-                    ));
+                    });
                 }
             }
         }

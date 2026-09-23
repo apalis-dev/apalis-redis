@@ -24,7 +24,7 @@ apalis-redis = { version = "1" }
 
 ```rust,no_run
 use apalis::prelude::*;
-use apalis_redis::{RedisStorage, RedisConfig as Config};
+use apalis_redis::RedisStorage;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -39,6 +39,7 @@ async fn send_email(task: Email) -> Result<(), BoxDynError> {
 #[tokio::main]
 async fn main() {
     let conn = apalis_redis::connect(env!("REDIS_URL")).await.expect("Could not connect");
+
     let mut storage = RedisStorage::new(conn);
 
     let task = Email {
@@ -55,14 +56,14 @@ async fn main() {
 }
 ```
 
-### Shared Example
+### Factory Example
 
 This shows an example of multiple backends using the same connection.
 This can improve performance if you have many task types.
 
 ```rust,no_run
 use apalis::prelude::*;
-use apalis_redis::{RedisStorage, Client, shared::SharedRedisStorage};
+use apalis_redis::{RedisStorage, Client, factory::RedisStorageFactory};
 use tokio::time::Duration;
 use std::collections::HashMap;
 use futures::stream;
@@ -71,11 +72,12 @@ use std::env;
 #[tokio::main]
 async fn main() {
     let client = Client::open(env::var("REDIS_URL").unwrap()).unwrap();
-    let mut store = SharedRedisStorage::new(client).await.unwrap();
 
-    let mut map_store = store.make_shared().unwrap();
+    let mut store = RedisStorageFactory::new(client).await.unwrap();
 
-    let mut int_store = store.make_shared().unwrap();
+    let mut map_store = store.create().unwrap();
+
+    let mut int_store = store.create().unwrap();
 
     map_store
         .push_stream(&mut stream::iter(vec![HashMap::<String, String>::new()]))
@@ -83,9 +85,9 @@ async fn main() {
         .unwrap();
     int_store.push(99).await.unwrap();
 
-    async fn send_reminder<T, I>(
+    async fn send_reminder<T>(
         _: T,
-        task_id: TaskId<I>,
+        task_id: TaskId,
         wrk: WorkerContext,
     ) -> Result<(), BoxDynError> {
         tokio::time::sleep(Duration::from_secs(2)).await;
@@ -103,12 +105,12 @@ async fn main() {
 }
 ```
 
-### Workflow example
+### Sequential Workflow example
 
 ```rust,no_run
 use apalis::prelude::*;
-use apalis_redis::{RedisStorage, RedisConfig as Config};
-use apalis_workflow::Workflow;
+use apalis_redis::RedisStorage;
+use apalis_workflow::SteppedFlow;
 use serde::{Deserialize, Serialize};
 use std::env;
 
@@ -134,9 +136,10 @@ async fn task3(task: Data) -> Result<(), BoxDynError> {
 async fn main() {
   let redis_url = env::var("REDIS_URL").expect("REDIS_URL must be set");
   let conn = apalis_redis::connect(redis_url).await.expect("Could not connect");
+  
   let storage = RedisStorage::new(conn);
 
-  let work_flow = Workflow::new("sample-workflow")
+  let work_flow = SteppedFlow::new("sample-workflow")
       .and_then(task1)
       .and_then(task2)
       .and_then(task3);

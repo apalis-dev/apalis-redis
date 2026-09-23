@@ -1,22 +1,21 @@
-use apalis_core::backend::Vacuum;
-use apalis_core::backend::codec::Codec;
+use apalis_core::backend::{Backend, Vacuum};
 use redis::aio::ConnectionLike;
 
-use crate::RedisStorage;
+use crate::{RedisStorage, error::Error};
 
-impl<Args, Conn, C> Vacuum for RedisStorage<Args, Conn, C>
+impl<Args, Conn> Vacuum for RedisStorage<Args, Conn>
 where
     Args: Unpin + Send + Sync + 'static,
     Conn: ConnectionLike + Clone + Send + Sync + 'static,
-    C: Codec<Args, Compact = Vec<u8>> + Unpin + Send + 'static,
-    C::Error: std::error::Error + Send + Sync + 'static,
+    Self: Backend<Error = Error>,
 {
     async fn vacuum(&mut self) -> Result<usize, Self::Error> {
         let vacuum_script = redis::Script::new(include_str!("../../lua/vacuum.lua"));
-        vacuum_script
-            .key(self.config.job_data_hash())
-            .key(self.config.job_meta_hash())
-            .invoke_async(&mut self.conn)
-            .await
+        let items = vacuum_script
+            .key(self.persist.config.job_data_hash())
+            .key(self.persist.config.job_meta_hash())
+            .invoke_async(self.get_connection())
+            .await?;
+        Ok(items)
     }
 }

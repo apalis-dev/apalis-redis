@@ -7,14 +7,7 @@ ignore = []
 
 [licenses]
 confidence-threshold = 1.0
-allow = [
-    "Apache-2.0",
-    "BSD-3-Clause",
-    "MIT",
-    "Unicode-3.0",
-    "BSL-1.0",
-    "MPL-2.0",
-]
+allow = ["Apache-2.0", "BSD-3-Clause", "MIT", "Unicode-3.0", "BSL-1.0"]
 
 [bans]
 multiple-versions = "deny"
@@ -25,6 +18,7 @@ skip-tree = [
     { name = "r-efi" },
     { name = "rand" },
     { name = "rand_core" },
+    { name = "syn" },
 ]
 
 [sources]

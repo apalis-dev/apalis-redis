@@ -30,5 +30,5 @@ docker-compose --env-file .env up
 Now start the worker
 
 ```bash
-SENTINEL_NODES=redis://127.0.0.1:26379,redis://127.0.0.1:26380,redis://127.0.0.1:26381 cargo run cargo run --example sentinel
+SENTINEL_NODES=redis://127.0.0.1:26379,redis://127.0.0.1:26380,redis://127.0.0.1:26381 cargo run --example sentinel
 ```
