@@ -30,7 +30,8 @@ where
         .key(&job_meta_hash)
         .key(&active_jobs_list)
         .arg(inflight_worker_id)
-        .arg(now);
+        .arg(now)
+        .arg(config.emit_events);
 
     for task_id in task_ids {
         invocation.arg(task_id);
@@ -65,7 +66,8 @@ where
         .key(&workers_set)
         .key(&job_meta_hash)
         .arg(inflight_worker_id)
-        .arg(now);
+        .arg(now)
+        .arg(config.emit_events);
 
     for task in worker.tasks() {
         invocation.arg(task.task_id());
@@ -97,7 +99,8 @@ pub(crate) async fn release_leases<C: ConnectionLike>(
         .key(signal_list)
         .key(workers_set)
         .key(job_meta_hash)
-        .arg(inflight_worker_id);
+        .arg(inflight_worker_id)
+        .arg(config.emit_events);
 
     for task in tasks {
         invocation.arg(task.task_id().unwrap().to_string());

@@ -23,7 +23,14 @@ where
         .key(config.signal_list())
         .key(config.job_meta_hash())
         .key(config.scheduled_jobs_set())
-        .key(config.idempotency_key_set());
+        .key(config.idempotency_key_set())
+        .arg(
+            config
+                .idempotency_ttl
+                .map(|a| a.as_secs())
+                .unwrap_or_default(), // 0 is forever
+        )
+        .arg(config.emit_events);
     for request in tasks {
         let task_id = request
             .task_id()

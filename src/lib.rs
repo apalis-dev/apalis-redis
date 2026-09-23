@@ -10,7 +10,7 @@ use std::{
     io,
     marker::PhantomData,
     pin::Pin,
-    task::{Context, Poll},
+    task::{Context, Poll, ready},
 };
 
 use apalis_codec::json::JsonCodec;
@@ -18,6 +18,7 @@ use apalis_core::{
     backend::{
         Backend, BackendConfig, WireFormatBackend,
         finalize::Durable,
+        future::BoxSyncFuture,
         persistence::{Persisted, TaskPersistLayer},
     },
     features_table,
@@ -25,7 +26,7 @@ use apalis_core::{
     worker::context::WorkerContext,
 };
 
-use futures::Sink;
+use futures::{FutureExt, Sink};
 
 pub use redis::{
     Client, IntoConnectionInfo, RedisError, aio::ConnectionLike, aio::ConnectionManager,
@@ -59,11 +60,13 @@ pub type RedisTask<Args = Vec<u8>> = Task<Args>;
 #[doc = features_table! {
     setup = r#"
     # {
-    #    use apalis_redis::RedisStorage;
+    #    use apalis_redis::{RedisStorage, Config};
     #    use std::env;
     #    let redis_url = env::var("REDIS_URL").expect("REDIS_URL must be set");
     #    let conn = apalis_redis::connect(redis_url).await.expect("Could not connect");
-    #    RedisStorage::<u32>::new(conn)
+    #    const MOD_PATH: &str = module_path!();
+    #    let config = Config::default().queue(MOD_PATH);
+    #    RedisStorage::<u32>::new(conn).with_config(config)
     # };
     "#,
     TaskSink => supported("Ability to push new tasks", true),
@@ -83,6 +86,7 @@ where
     job_type: PhantomData<Args>,
     persist: Persisted<RedisPersistence<Conn>>,
     codec: JsonCodec,
+    cleanup: Option<BoxSyncFuture<Result<(), Error>>>,
 }
 
 impl<Args, Conn> Clone for RedisStorage<Args, Conn>
@@ -94,6 +98,7 @@ where
             job_type: PhantomData,
             persist: self.persist.clone(),
             codec: self.codec.clone(),
+            cleanup: None,
         }
     }
 }
@@ -109,6 +114,7 @@ where
             job_type: PhantomData,
             persist: Persisted::new(RedisPersistence { config, conn }),
             codec: JsonCodec::default(),
+            cleanup: None,
         }
     }
 
@@ -119,6 +125,7 @@ where
             job_type: PhantomData,
             persist: self.persist,
             codec: self.codec,
+            cleanup: None,
         }
     }
 
@@ -163,7 +170,26 @@ where
         cx: &mut Context<'_>,
         worker: &WorkerContext,
     ) -> Poll<Result<(), Self::Error>> {
-        self.persist.poll_close(cx, worker)
+        if self.cleanup.is_none() {
+            ready!(self.persist.poll_close(cx, worker))?;
+            let worker = worker.clone();
+            let config = self.config().clone();
+            let mut conn = self.persist.conn.clone();
+            self.cleanup = Some(
+                async move {
+                    redis::cmd("ZREM")
+                        .arg(config.workers_set())
+                        .arg(config.inflight_worker_id(&worker))
+                        .query_async::<u32>(&mut conn)
+                        .await?;
+                    Ok(())
+                }
+                .boxed()
+                .into(),
+            );
+        };
+
+        self.cleanup.as_mut().unwrap().poll_unpin(cx)
     }
 }
 
@@ -270,9 +296,7 @@ mod tests {
     async fn basic_worker() {
         let client = Client::open(env::var("REDIS_URL").unwrap()).unwrap();
         let conn = client.get_connection_manager().await.unwrap();
-        let config = Config::default()
-            .queue("redis_basic_worker")
-            .batch_size(100);
+        let config = Config::default().queue("basic:queue").batch_size(100);
         let mut backend = RedisStorage::new(conn).with_config(config);
         for i in 0..ITEMS {
             backend.push(i).await.unwrap();
@@ -283,12 +307,11 @@ mod tests {
             println!("{task:?}, {ctx:?}, Thread: {:?}", handle.id());
             if task == ITEMS - 1 {
                 wrk.stop().unwrap();
-                return Err("Worker stopped!")?;
             }
             Ok(())
         }
 
-        let worker = WorkerBuilder::new("rango-tango")
+        let worker = WorkerBuilder::new("rango-tango-basic")
             .backend(backend)
             .on_event(|ctx, ev| {
                 println!("CTX {:?}, On Event = {:?}", ctx.name(), ev);
@@ -301,7 +324,7 @@ mod tests {
     async fn basic_worker_msgpack() {
         let client = Client::open(env::var("REDIS_URL").unwrap()).unwrap();
         let conn = client.get_connection_manager().await.unwrap();
-        let config = Config::default().queue("msgpack-queue").batch_size(100);
+        let config = Config::default().queue("msgpack:queue").batch_size(100);
         let mut backend = RedisStorage::new(conn)
             .with_config(config)
             .with_codec(MsgPackCodec::default());
@@ -325,7 +348,7 @@ mod tests {
             Ok("Worker".to_owned())
         }
 
-        let worker = WorkerBuilder::new("rango-tango")
+        let worker = WorkerBuilder::new("rango-tango-msgpack")
             .backend(backend)
             .parallelize(tokio::spawn)
             .on_event(|ctx, ev| {
@@ -411,7 +434,7 @@ mod tests {
 
         backend.push_start(0u32).await.unwrap();
 
-        let worker = WorkerBuilder::new("rango-tango")
+        let worker = WorkerBuilder::new("rango-tango-workflow")
             .backend(backend)
             .on_event(|ctx, ev| {
                 println!("Worker {:?}, On Event = {:?}", ctx.name(), ev);

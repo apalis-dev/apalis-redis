@@ -49,19 +49,19 @@ where
         )
         .await?;
         if count > 0 {
-            tracing::debug!(
-                "{count} Re-enqueued orphaned tasks by worker {}",
-                worker.name()
-            );
+            tracing::debug!("{count} re-enqueued orphaned tasks",);
         }
         register_worker(&mut self.conn, worker, &self.config).await?;
-        tracing::debug!("Registered Worker: {}", worker.name());
+        tracing::debug!("registered worker successfully");
         Ok(())
     }
     async fn heartbeat(&mut self, worker: &WorkerContext) -> Result<(), Error> {
         let config = &self.config;
         keep_alive(&mut self.conn, worker, config).await?;
-        renew_leases(&mut self.conn, worker, config).await?;
+        if self.config.lock_tasks {
+            let count = renew_leases(&mut self.conn, worker, config).await?;
+            tracing::debug!("renewed leases for {count} tasks");
+        }
         let count = reenqueue_orphaned(
             &mut self.conn,
             &self.config,
@@ -70,10 +70,7 @@ where
         .await?;
 
         if count > 0 {
-            tracing::debug!(
-                "Re-enqueued {count} orphaned tasks by worker {}",
-                worker.name()
-            );
+            tracing::debug!("re-enqueued {count} orphaned task(s)");
         }
         Ok(())
     }
@@ -107,7 +104,6 @@ where
                 }
             })
             .collect::<Vec<_>>();
-
         if lock_ids.is_empty() && ack_payloads.is_empty() {
             return Ok(());
         }
@@ -136,9 +132,8 @@ where
         worker: &WorkerContext,
     ) -> Result<u64, Error> {
         let config = &self.config;
-
         let count = release_leases(&mut self.conn, config, worker, &tasks).await?;
-        if count as usize != tasks.len() {
+        if self.config.lock_tasks && count as usize != tasks.len() {
             return Err(Error::ReenqueueMismatch {
                 queued: tasks.len(),
                 abandoned: count as usize,

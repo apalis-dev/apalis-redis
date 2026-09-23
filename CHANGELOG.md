@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc.8] - 2026-09-23
+
 - deps(deps): bump event-listener from 5.4.1 to 5.4.2 ([#97](https://github.com/apalis-dev/apalis-redis/pull/97))
 - deps(deps): bump redis from 1.2.4 to 1.3.0 ([#88](https://github.com/apalis-dev/apalis-redis/pull/88))
 - ci(deps): bump actions/cache from 5 to 6 ([#87](https://github.com/apalis-dev/apalis-redis/pull/87))

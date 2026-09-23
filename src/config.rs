@@ -65,6 +65,13 @@ pub struct Config {
     /// Whether to emit task events via pubsub
     #[serde(default = "default_events")]
     pub emit_events: bool,
+
+    /// How long an idempotency key should be retained.
+    ///
+    /// When `None`, idempotency keys do not expire.
+    /// When `Some(duration)`, the key expires after the configured duration.
+    #[serde(default)]
+    pub idempotency_ttl: Option<Duration>,
 }
 
 impl Default for Config {
@@ -77,7 +84,8 @@ impl Default for Config {
             database_url: None,
             lock_tasks: true,
             persist_results: true,
-            emit_events: false,
+            emit_events: true,
+            idempotency_ttl: None,
         }
     }
 }
@@ -269,6 +277,33 @@ impl Config {
     #[must_use]
     pub fn persist_results(mut self, persist_results: bool) -> Self {
         self.persist_results = persist_results;
+        self
+    }
+
+    /// Sets the time-to-live for task idempotency keys.
+    ///
+    /// When configured, idempotency keys expire after the specified
+    /// duration, allowing a task with the same key to be enqueued again.
+    ///
+    /// Use `None` to disable expiration.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use apalis_redis::Config;
+    /// use std::time::Duration;
+    ///
+    /// let config = Config::default()
+    ///     .idempotency_ttl(Some(Duration::from_secs(3600)));
+    ///
+    /// assert_eq!(
+    ///     config.idempotency_ttl,
+    ///     Some(Duration::from_secs(3600))
+    /// );
+    /// ```
+    #[must_use]
+    pub fn idempotency_ttl(mut self, ttl: Option<Duration>) -> Self {
+        self.idempotency_ttl = ttl;
         self
     }
 

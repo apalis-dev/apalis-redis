@@ -92,6 +92,7 @@ impl<Args> BackendFactory<Args> for RedisStorageFactory {
             job_type: PhantomData,
             persist: Persisted::new(RedisPersistence { config, conn }),
             codec: JsonCodec::default(),
+            cleanup: None,
         };
         Ok(PollWith::new(redis_storage, StreamStrategy::new(poller)))
     }

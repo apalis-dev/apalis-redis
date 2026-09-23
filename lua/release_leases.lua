@@ -3,14 +3,14 @@
 -- KEYS[3]: the signal list
 -- KEYS[4]: the active workers sorted set
 -- KEYS[5]: the task metadata prefix
-
 -- ARGV[1]: worker id
--- ARGV[2..]: specific job IDs to release. If empty, release everything in KEYS[1].
-
+-- ARGV[2]: emit event bool ("true" or "false")
+-- ARGV[3..]: specific job IDs to release. If empty, release everything in KEYS[1].
 -- Returns: number of jobs reenqueued
-
 local inflight_set = KEYS[1]
 local worker_id = ARGV[1]
+
+local emit_events = ARGV[2] == "true"
 
 local job_ids = {}
 for i = 3, #ARGV do
@@ -29,7 +29,9 @@ if #job_ids > 0 then
             local meta_key = KEYS[5] .. ":" .. job_id
             redis.call("hset", meta_key, "status", "Pending")
             redis.call("hdel", meta_key, "locked_at", "locked_by")
-
+            if emit_events then
+                redis.call("publish", "tasks:" .. KEYS[2] .. ':available', job_id)
+            end
             reenqueued = reenqueued + 1
         end
     end
@@ -46,6 +48,9 @@ else
             local meta_key = KEYS[5] .. ":" .. job_id
             redis.call("hset", meta_key, "status", "Pending")
             redis.call("hdel", meta_key, "locked_at", "locked_by")
+            if emit_events then
+                redis.call("publish", "tasks:" .. KEYS[2] .. ':available', job_id)
+            end
         end
     end
 end
@@ -54,8 +59,5 @@ if reenqueued > 0 then
     redis.call("del", KEYS[3])
     redis.call("lpush", KEYS[3], 1)
 end
-
--- Deregister the worker 
-redis.call("zrem", KEYS[4], worker_id)
 
 return reenqueued
