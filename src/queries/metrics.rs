@@ -1,35 +1,27 @@
-use apalis_core::backend::{BackendExt, Metrics, Statistic, codec::Codec};
+use apalis_core::backend::{Backend, Metrics, Statistic};
 use redis::Script;
-use ulid::Ulid;
 
-use crate::{RedisContext, RedisStorage, build_error};
+use crate::{RedisStorage, build_error, error::Error, queries::current_timestamp};
 
-impl<Args, Conn, C> Metrics for RedisStorage<Args, Conn, C>
+impl<Args, Conn> Metrics for RedisStorage<Args, Conn>
 where
-    RedisStorage<Args, Conn, C>: BackendExt<
-            Context = RedisContext,
-            Compact = Vec<u8>,
-            IdType = Ulid,
-            Error = redis::RedisError,
-        >,
-    C: Codec<Args, Compact = Vec<u8>> + Send + Sync,
-    C::Error: std::error::Error + Send + Sync + 'static,
+    RedisStorage<Args, Conn>: Backend<Error = Error>,
     Args: 'static + Send + Sync,
-    Conn: redis::aio::ConnectionLike + Send + Clone + Sync,
+    Conn: redis::aio::ConnectionLike + Send + Clone + Sync + 'static,
 {
-    fn global(&self) -> impl Future<Output = Result<Vec<Statistic>, Self::Error>> + Send {
-        let mut conn = self.conn.clone();
+    fn global(&self) -> impl Future<Output = Result<Vec<Statistic>, Error>> + Send {
+        let mut conn = self.persist.conn.clone();
 
         async move {
             let queues = redis::cmd("ZRANGE")
-                .arg("core::apalis::queues")
+                .arg("core:apalis:queues")
                 .arg(0)
                 .arg(-1)
                 .query_async::<Vec<String>>(&mut conn)
                 .await?;
             let lua = include_str!("../../lua/overview.lua");
             let script = Script::new(lua);
-            let now = chrono::Utc::now().timestamp();
+            let now = current_timestamp();
             let mut script = &mut script.arg(now);
             for queue in queues {
                 script = script.key(queue);
@@ -47,9 +39,9 @@ where
         }
     }
     fn fetch_by_queue(&self) -> impl Future<Output = Result<Vec<Statistic>, Self::Error>> + Send {
-        let mut conn = self.conn.clone();
+        let mut conn = self.persist.conn.clone();
 
-        let queue_name = self.config.get_namespace().to_string();
+        let queue_name = self.persist.config.queue.to_string();
         async move {
             let lua = include_str!("../../lua/overview_by_queue.lua");
             let script = Script::new(lua);

@@ -1,35 +1,26 @@
-use apalis_core::backend::{BackendExt, ListWorkers, RunningWorker, codec::Codec};
-use redis::{RedisError, Script};
-use ulid::Ulid;
+use apalis_core::backend::{Backend, ListWorkers, RunningWorker};
+use redis::Script;
 
-use crate::{RedisContext, RedisStorage};
+use crate::{RedisStorage, error::Error};
 
-impl<Args: Sync, Conn, C> ListWorkers for RedisStorage<Args, Conn, C>
+impl<Args: Sync, Conn> ListWorkers for RedisStorage<Args, Conn>
 where
-    RedisStorage<Args, Conn, C>: BackendExt<
-            Context = RedisContext,
-            Compact = Vec<u8>,
-            IdType = Ulid,
-            Error = redis::RedisError,
-        >,
-    C: Codec<Args, Compact = Vec<u8>> + Send,
-    C::Error: std::error::Error + Send + Sync + 'static,
+    RedisStorage<Args, Conn>: Backend<Error = Error>,
     Args: 'static + Send,
-    Conn: redis::aio::ConnectionLike + Send + Clone,
+    Conn: redis::aio::ConnectionLike + Sync + Send + Clone,
 {
     fn list_workers(&self) -> impl Future<Output = Result<Vec<RunningWorker>, Self::Error>> + Send {
-        let queue = self.config.get_namespace().to_string();
-        let mut conn = self.conn.clone();
+        let queue = self.persist.config.queue.to_string();
+        let mut conn = self.persist.conn.clone();
+
         async move {
-            let worker_metadata_key = format!("{}:workers:metadata", queue);
+            let worker_metadata_key = format!("{}:workers:", queue);
             let json: String = Script::new(include_str!("../../lua/list_workers.lua"))
                 .key(format!("{}:workers", queue))
                 .key(worker_metadata_key)
                 .invoke_async(&mut conn)
                 .await?;
-            let workers: Vec<RunningWorker> = serde_json::from_str(&json).map_err(|e| {
-                redis::RedisError::from((redis::ErrorKind::Parse, "invalid JSON", e.to_string()))
-            })?;
+            let workers: Vec<RunningWorker> = serde_json::from_str(&json).map_err(Error::Json)?;
 
             Ok(workers)
         }
@@ -38,15 +29,14 @@ where
     fn list_all_workers(
         &self,
     ) -> impl Future<Output = Result<Vec<RunningWorker>, Self::Error>> + Send {
-        let mut conn = self.conn.clone();
+        let mut conn = self.persist.conn.clone();
+
         async move {
             let json: String = Script::new(include_str!("../../lua/list_all_workers.lua"))
                 .invoke_async(&mut conn)
                 .await?;
 
-            let workers: Vec<RunningWorker> = serde_json::from_str(&json).map_err(|e| {
-                RedisError::from((redis::ErrorKind::Parse, "invalid JSON", e.to_string()))
-            })?;
+            let workers: Vec<RunningWorker> = serde_json::from_str(&json).map_err(Error::Json)?;
 
             Ok(workers)
         }

@@ -1,44 +1,29 @@
-use apalis_core::{
-    backend::{BackendExt, FetchById, codec::Codec},
-    task::task_id::TaskId,
-};
+use apalis_core::{backend::FetchById, task::task_id::TaskId};
 use redis::{Script, Value};
-use ulid::Ulid;
 
-use crate::{RedisContext, RedisStorage, RedisTask, fetcher::deserialize_with_meta};
+use crate::{RedisStorage, RedisTask, error::Error, queries::fetch_next::deserialize_with_meta};
 
-impl<Args, Conn, C> FetchById<Args> for RedisStorage<Args, Conn, C>
+impl<Args, Conn> FetchById for RedisStorage<Args, Conn>
 where
-    RedisStorage<Args, Conn, C>: BackendExt<
-            Context = RedisContext,
-            Compact = Vec<u8>,
-            IdType = Ulid,
-            Error = redis::RedisError,
-        >,
-    C: Codec<Args, Compact = Vec<u8>> + Send,
-    C::Error: std::error::Error + Send + Sync + 'static,
     Args: 'static + Send,
-    Conn: redis::aio::ConnectionLike + Send,
+    Conn: redis::aio::ConnectionLike + Send + Sync + 'static + Clone,
 {
-    async fn fetch_by_id(
-        &mut self,
-        task_id: &TaskId<Self::IdType>,
-    ) -> Result<Option<RedisTask<Args>>, Self::Error> {
+    async fn fetch_by_id(&mut self, task_id: &TaskId) -> Result<Option<RedisTask>, Self::Error> {
         let fetch_by_id_script = Script::new(include_str!("../../lua/fetch_by_id.lua"));
         let result: Value = fetch_by_id_script
-            .key(self.config.job_data_hash())
-            .key(self.config.job_meta_hash())
+            .key(self.persist.config.job_data_hash())
+            .key(self.persist.config.job_meta_hash())
             .arg(task_id.to_string())
-            .invoke_async(&mut self.conn)
+            .invoke_async(&mut self.persist.conn)
             .await?;
 
         match result {
-            Value::ServerError(s) => Err(s.into()),
-            Value::Array(ref data) => {
-                let tasks = deserialize_with_meta(data).expect("Failed to deserialize");
+            Value::ServerError(s) => Err(Error::Database(s.into())),
+            Value::Array(data) => {
+                let tasks = deserialize_with_meta(data)?;
 
                 if let Some(task) = tasks.into_iter().take(1).next() {
-                    let task = task.into_full_task::<Args, C>()?;
+                    let task = task.into_full_compact();
                     Ok(Some(task))
                 } else {
                     Ok(None)

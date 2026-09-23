@@ -1,26 +1,19 @@
-use apalis_core::backend::{BackendExt, Filter, ListAllTasks, ListTasks, codec::Codec};
+use apalis_core::backend::{Backend, Filter, ListAllTasks, ListTasks};
 use redis::{Script, Value};
-use ulid::Ulid;
 
-use crate::{RedisContext, RedisStorage, RedisTask, fetcher::deserialize_with_meta};
+use crate::{RedisStorage, RedisTask, error::Error, queries::fetch_next::deserialize_with_meta};
 
-impl<Args, Conn, C> ListTasks<Args> for RedisStorage<Args, Conn, C>
+impl<Args, Conn> ListTasks for RedisStorage<Args, Conn>
 where
-    RedisStorage<Args, Conn, C>: BackendExt<
-            Context = RedisContext,
-            Compact = Vec<u8>,
-            IdType = Ulid,
-            Error = redis::RedisError,
-        >,
-    C: Codec<Args, Compact = Vec<u8>> + Send + Sync,
-    C::Error: std::error::Error + Send + Sync + 'static,
+    RedisStorage<Args, Conn>: Backend<Error = crate::error::Error>,
     Args: 'static + Send + Sync,
-    Conn: redis::aio::ConnectionLike + Send + Clone + Sync,
+    Conn: redis::aio::ConnectionLike + Send + Sync + 'static + Clone,
 {
-    async fn list_tasks(&self, filter: &Filter) -> Result<Vec<RedisTask<Args>>, Self::Error> {
-        let queue = self.config.get_namespace().to_string();
+    async fn list_tasks(&self, filter: &Filter) -> Result<Vec<RedisTask>, Self::Error> {
+        let config = &self.persist.config;
+        let queue = config.queue.as_ref();
         let script = Script::new(include_str!("../../lua/list_tasks.lua"));
-        let mut conn = self.conn.clone();
+        let mut conn = self.persist.conn.clone();
         let status_str = filter
             .status
             .as_ref()
@@ -30,8 +23,8 @@ where
         let page_size = filter.page_size.unwrap_or(10);
 
         let result: Value = script
-            .key(self.config.job_data_hash())
-            .key(self.config.job_meta_hash())
+            .key(config.job_data_hash())
+            .key(config.job_meta_hash())
             .key(queue)
             .arg(status_str)
             .arg(page.to_string())
@@ -39,39 +32,28 @@ where
             .invoke_async(&mut conn)
             .await?;
 
-        if let Value::Array(arr) = &result {
-            deserialize_with_meta(arr)
-                .map(|tasks| {
-                    tasks
-                        .into_iter()
-                        .map(|t| t.into_full_task::<Args, C>())
-                        .collect::<Result<Vec<RedisTask<Args>>, _>>()
-                })
-                .and_then(|s| s)
+        if let Value::Array(arr) = result {
+            Ok(deserialize_with_meta(arr).map(|tasks| {
+                tasks
+                    .into_iter()
+                    .map(|t| t.into_full_compact())
+                    .collect::<Vec<RedisTask>>()
+            })?)
         } else {
             Ok(vec![])
         }
     }
 }
 
-impl<Args, Conn, C> ListAllTasks for RedisStorage<Args, Conn, C>
+impl<Args, Conn> ListAllTasks for RedisStorage<Args, Conn>
 where
-    RedisStorage<Args, Conn, C>: BackendExt<
-            Context = RedisContext,
-            Compact = Vec<u8>,
-            IdType = Ulid,
-            Error = redis::RedisError,
-        >,
-    C: Codec<Args, Compact = Vec<u8>> + Send + Sync,
-    C::Error: std::error::Error + Send + Sync + 'static,
+    RedisStorage<Args, Conn>: Backend<Error = Error>,
     Args: 'static + Send + Sync,
-    Conn: redis::aio::ConnectionLike + Send + Sync + Clone,
+    Conn: redis::aio::ConnectionLike + Send + Sync + Clone + 'static,
 {
-    async fn list_all_tasks(
-        &self,
-        filter: &Filter,
-    ) -> Result<Vec<RedisTask<Vec<u8>>>, Self::Error> {
-        let mut conn = self.conn.clone();
+    async fn list_all_tasks(&self, filter: &Filter) -> Result<Vec<RedisTask>, Self::Error> {
+        let config = &self.persist.config;
+        let mut conn = self.persist.conn.clone();
         let script = Script::new(include_str!("../../lua/list_all_tasks.lua"));
         let status_str = filter
             .status
@@ -82,8 +64,8 @@ where
         let page_size = filter.page_size.unwrap_or(10);
 
         let result: Value = script
-            .key(self.config.job_data_hash())
-            .key(self.config.job_meta_hash())
+            .key(config.job_data_hash())
+            .key(config.job_meta_hash())
             .arg(status_str)
             .arg(page.to_string())
             .arg(page_size.to_string())
@@ -91,14 +73,9 @@ where
             .await?;
 
         if let Value::Array(arr) = result {
-            deserialize_with_meta(&arr)
-                .map(|tasks| {
-                    tasks
-                        .into_iter()
-                        .map(|t| t.into_full_compact())
-                        .collect::<Result<Vec<RedisTask<Vec<u8>>>, _>>()
-                })
-                .and_then(|s| s)
+            let val = deserialize_with_meta(arr)
+                .map(|tasks| tasks.into_iter().map(|t| t.into_full_compact()).collect())?;
+            Ok(val)
         } else {
             Ok(vec![])
         }

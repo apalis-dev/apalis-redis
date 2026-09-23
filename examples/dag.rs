@@ -1,8 +1,8 @@
 use std::env;
 
 use apalis::prelude::*;
-use apalis_redis::{RedisConfig, RedisStorage};
-use apalis_workflow::{DagFlow, WorkflowSink};
+use apalis_redis::{Config, RedisStorage};
+use apalis_workflow::{GraphFlow, WorkflowSink};
 use tracing::info;
 
 async fn get_name(user_id: u32) -> Result<String, BoxDynError> {
@@ -35,23 +35,19 @@ async fn main() -> Result<(), BoxDynError> {
     let conn = apalis_redis::connect(env::var("REDIS_URL").unwrap())
         .await
         .unwrap();
-    let mut backend = RedisStorage::new_with_config(
-        conn,
-        RedisConfig::default()
-            .set_namespace("redis_dag_worker")
-            .set_buffer_size(100),
-    );
-    backend.push_start(vec![42, 43, 44]).await.unwrap();
+    let config = Config::default().queue("workflow:user-info");
+    let mut backend = RedisStorage::new(conn).with_config(config);
+    backend.start_fan_out(vec![42, 43, 44]).await.unwrap();
 
-    let dag_flow = DagFlow::new("user-info-workflow");
-    let get_name = dag_flow.node(get_name);
-    let get_age = dag_flow.node(get_age);
-    let get_address = dag_flow.node(get_address);
-    dag_flow
-        .node(collector)
+    let graph = GraphFlow::new("user-info-workflow");
+    let get_name = graph.add_task(get_name);
+    let get_age = graph.add_task(get_age);
+    let get_address = graph.add_task(get_address);
+    graph
+        .add_task(collector)
         .depends_on((&get_name, &get_age, &get_address)); // Order and types matters here
 
-    dag_flow.validate()?; // Ensure DAG is valid
+    graph.validate()?; // Ensure DAG is valid
 
     // This should print something like:
     // digraph {
@@ -66,13 +62,13 @@ async fn main() -> Result<(), BoxDynError> {
     //
     // You can visualize this using tools like Graphviz
     // https://dreampuf.github.io/GraphvizOnline/
-    info!("Executing workflow:\n{}", dag_flow); // Print the DAG structure in dot format
+    info!("Executing workflow:\n{}", graph); // Print the DAG structure in dot format
 
     WorkerBuilder::new("tasty-banana")
         .backend(backend)
         .enable_tracing()
         .on_event(|_c, e| info!("{e}"))
-        .build(dag_flow)
+        .build(graph)
         .run()
         .await?;
     Ok(())
