@@ -11,6 +11,7 @@ mod metrics;
 mod push_tasks;
 mod reenqueue;
 mod register_worker;
+mod scripts;
 mod task_lease;
 mod vacuum;
 mod wait_for;
