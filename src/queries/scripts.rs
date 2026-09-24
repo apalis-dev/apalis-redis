@@ -18,16 +18,24 @@ pub(crate) const OVERVIEW: &str = include_str!("../../lua/overview.lua");
 pub(crate) const OVERVIEW_BY_QUEUE: &str = include_str!("../../lua/overview_by_queue.lua");
 pub(crate) const BATCH_PUSH: &str = include_str!("../../lua/batch_push.lua");
 
-/// Loads a script into Redis and returns a client-side handle that invokes it
-/// with `EVALSHA`. `SCRIPT LOAD` is idempotent, so repeated calls are safe.
+/// Loads `source` with Redis `SCRIPT LOAD` and returns a script handle.
+///
+/// `Script::invoke_async` executes the returned handle with `EVALSHA`; keeping
+/// the load and invocation on the same connection ensures the script is
+/// available to that Redis server connection.
 pub(crate) async fn load<C>(conn: &mut C, source: &'static str) -> RedisResult<Script>
 where
     C: ConnectionLike,
 {
-    redis::cmd("SCRIPT")
+    let loaded_sha: String = redis::cmd("SCRIPT")
         .arg("LOAD")
         .arg(source)
-        .query_async::<String>(conn)
+        .query_async(conn)
         .await?;
-    Ok(Script::new(source))
+
+    // Script computes the SHA1 Redis uses for EVALSHA. Verify the server's
+    // response so a changed script cannot silently be invoked with a stale id.
+    let script = Script::new(source);
+    debug_assert_eq!(loaded_sha, script.hash_digest());
+    Ok(script)
 }
