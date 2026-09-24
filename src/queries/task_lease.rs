@@ -17,7 +17,7 @@ where
     }
 
     let script = redis::Script::new(include_str!("../../lua/acquire_leases.lua"));
-    let inflight_worker_id = config.inflight_worker_id(worker);
+    let worker_inflight_set = config.inflight_set_for(worker);
     let workers_set = config.workers_set();
     let job_meta_hash = config.job_meta_hash();
     let active_jobs_list = config.active_jobs_list();
@@ -25,11 +25,11 @@ where
 
     let mut invocation = script.prepare_invoke();
     invocation
-        .key(config.inflight_jobs_set())
+        .key(worker_inflight_set)
         .key(&workers_set)
         .key(&job_meta_hash)
         .key(&active_jobs_list)
-        .arg(inflight_worker_id)
+        .arg(worker.name())
         .arg(now)
         .arg(config.emit_events);
 
@@ -55,17 +55,17 @@ where
     }
 
     let script = redis::Script::new(include_str!("../../lua/renew_leases.lua"));
-    let inflight_worker_id = config.inflight_worker_id(worker);
+    let worker_inflight_set = config.inflight_set_for(worker);
     let workers_set = config.workers_set();
     let job_meta_hash = config.job_meta_hash();
     let now: u64 = current_timestamp();
 
     let mut invocation = script.prepare_invoke();
     invocation
-        .key(config.inflight_jobs_set())
+        .key(worker_inflight_set)
         .key(&workers_set)
         .key(&job_meta_hash)
-        .arg(inflight_worker_id)
+        .arg(worker.name())
         .arg(now)
         .arg(config.emit_events);
 
@@ -84,7 +84,7 @@ pub(crate) async fn release_leases<C: ConnectionLike>(
     worker: &WorkerContext,
     tasks: &Vec<RedisTask>,
 ) -> Result<u64, Error> {
-    let inflight_worker_id = config.inflight_worker_id(worker);
+    let worker_inflight_set = config.inflight_set_for(worker);
     let active_jobs_list = config.active_jobs_list();
     let signal_list = config.signal_list();
     let workers_set = config.workers_set();
@@ -94,12 +94,11 @@ pub(crate) async fn release_leases<C: ConnectionLike>(
     let mut invocation = script.prepare_invoke();
 
     invocation
-        .key(config.inflight_jobs_set())
+        .key(worker_inflight_set)
         .key(active_jobs_list)
         .key(signal_list)
         .key(workers_set)
         .key(job_meta_hash)
-        .arg(inflight_worker_id)
         .arg(config.emit_events);
 
     for task in tasks {

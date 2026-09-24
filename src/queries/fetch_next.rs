@@ -198,20 +198,20 @@ where
     let workers_set = config.workers_set();
     let active_jobs_list = config.active_jobs_list();
     let job_data_hash = config.job_data_hash();
-    let inflight_worker_id = config.inflight_worker_id(worker);
+    let worker_inflight_set = config.inflight_set_for(worker);
     let signal_list = config.signal_list();
 
     let result = fetch_jobs
         .key(&workers_set)
         .key(&active_jobs_list)
-        .key(config.inflight_jobs_set())
+        .key(worker_inflight_set)
         .key(&job_data_hash)
         .key(&signal_list)
         .key(config.job_meta_hash())
         .key(config.scheduled_jobs_set())
         .arg(current_timestamp())
         .arg(config.batch_size)
-        .arg(inflight_worker_id)
+        .arg(worker.name())
         .invoke_async::<Vec<redis::Value>>(conn)
         .await?;
 
