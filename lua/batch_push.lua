@@ -13,7 +13,7 @@ local newly_enqueued = 0
 local newly_scheduled = 0
 
 local idempotency_ttl = ARGV[1]
-local emit_events = ARGV[2] == "true"
+local emit_events = ARGV[2] == "1"
 
 for i = 3, #ARGV, 7 do
     local task_id = ARGV[i]

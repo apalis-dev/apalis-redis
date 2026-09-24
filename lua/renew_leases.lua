@@ -5,17 +5,17 @@
 --
 -- ARGV[1]: worker name
 -- ARGV[2]: current timestamp
--- ARGV[3]: emit event bool ("true" or "false")
+-- ARGV[3]: emit event bool ("1" or "0")
 -- ARGV[4..]: task_ids to renew
 --
 -- Returns: number of leases renewed (== #task_ids, or the call errors)
-local worker_id = ARGV[1]
-local inflight_set = KEYS[1]
+local worker_name = ARGV[1]
+local worker_inflight_set = KEYS[1]
 local now = ARGV[2]
-local emit_events = ARGV[3] == "true"
+local emit_events = ARGV[3] == "1"
 
 -- Confirm the worker itself is registered/alive
-local registered = redis.call("zscore", KEYS[2], worker_id)
+local registered = redis.call("zscore", KEYS[2], worker_name)
 if not registered then
     error("Cant renew leases: worker not registered")
 end
@@ -31,7 +31,7 @@ end
 
 -- Validate first: every task must currently be held by this worker
 for _, task_id in ipairs(task_ids) do
-    local is_member = redis.call("sismember", inflight_set, task_id)
+    local is_member = redis.call("sismember", worker_inflight_set, task_id)
     if is_member == 0 then
         error("lease not held for task: " .. task_id)
     end
@@ -46,7 +46,7 @@ for _, task_id in ipairs(task_ids) do
     if emit_events then
         redis.call("publish", "tasks:" .. KEYS[4] .. ":heartbeat", cjson.encode({
             task_id = task_id,
-            worker_id = worker_id
+            worker = worker_name
         }))
     end
 end

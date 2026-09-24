@@ -17,12 +17,10 @@ where
 
     let now = current_timestamp();
 
-    let inflight_worker_id = config.inflight_worker_id(worker);
-
     keep_alive
         .key(workers_set)
         .arg(now)
-        .arg(inflight_worker_id)
+        .arg(worker.name())
         .invoke_async::<bool>(conn)
         .await?;
     Ok(())

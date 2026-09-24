@@ -1,6 +1,6 @@
 -- KEYS[1]: the active workers sorted set
 -- KEYS[2]: the active job list
--- KEYS[3]: the inflight set
+-- KEYS[3]: this workers inflight set
 -- KEYS[4]: the task data hash
 -- KEYS[5]: the signal list
 -- KEYS[6]: the task metadata prefix
@@ -8,15 +8,16 @@
 
 -- ARGV[1]: current timestamp
 -- ARGV[2]: maximum number of jobs to fetch
--- ARGV[3]: worker id
+-- ARGV[3]: worker name
 
 -- Returns: {results, meta}
 
-local worker_id = ARGV[3]
+local worker_inflight_set = KEYS[3]
+local worker_name = ARGV[3]
 
 
 -- Ensure the worker is registered
-local registered = redis.call("zscore", KEYS[1], worker_id)
+local registered = redis.call("zscore", KEYS[1], worker_name)
 if not registered then
     error("Cant fetch next: worker not registered")
 end
@@ -55,7 +56,7 @@ local meta = {}
 
 if count > 0 then
     -- Mark jobs as inflight
-    redis.call("sadd", KEYS[3], unpack(task_ids))
+    redis.call("sadd", worker_inflight_set, unpack(task_ids))
 
     -- Remove fetched jobs from the active queue
     redis.call("ltrim", KEYS[2], count, -1)
