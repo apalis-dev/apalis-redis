@@ -65,7 +65,7 @@ dependencies = [
 
 [[package]]
 name = "apalis-redis"
-version = "1.0.0-rc.9"
+version = "1.0.0-rc.10"
 dependencies = [
  "apalis",
  "apalis-codec",
