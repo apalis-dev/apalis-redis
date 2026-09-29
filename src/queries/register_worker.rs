@@ -12,15 +12,17 @@ where
     Conn: ConnectionLike,
 {
     let register_worker = redis::Script::new(include_str!("../../lua/register_worker.lua"));
-    let inflight_worker_id = config.inflight_worker_id(worker);
     let workers_set = config.workers_set();
+
+    let metadata_key = config.worker_metadata_key(worker);
 
     let now = current_timestamp();
 
     register_worker
         .key(workers_set)
+        .key(metadata_key)
         .arg(now)
-        .arg(inflight_worker_id)
+        .arg(worker.name())
         .arg(config.orphaned_duration().as_secs())
         .arg("RedisStorage")
         .arg(worker.get_service())

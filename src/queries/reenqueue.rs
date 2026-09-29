@@ -11,10 +11,9 @@ pub(crate) async fn reenqueue_orphaned<C>(
 where
     C: ConnectionLike,
 {
-    let queue = config.queue.as_ref();
-    let worker_set = format!("{}:workers", queue);
-    let active_jobs_list = format!("{}:active", queue);
-    let signal_list = format!("{}:signal", queue);
+    let worker_set = config.workers_set();
+    let active_jobs_list = config.active_jobs_list();
+    let signal_list = config.signal_list();
 
     let script = Script::new(include_str!("../../lua/reenqueue_orphaned.lua"));
 
@@ -28,6 +27,7 @@ where
                 .key(worker_set)
                 .key(active_jobs_list)
                 .key(signal_list)
+                .key(config.inflight_jobs_set())
                 .arg(expired_before)
                 .arg(worker_name)
                 .invoke_async::<u32>(conn)
@@ -41,6 +41,7 @@ where
                 .key(worker_set)
                 .key(active_jobs_list)
                 .key(signal_list)
+                .key(config.inflight_jobs_set())
                 .arg(expired_before)
                 .invoke_async::<u32>(conn)
                 .await?
