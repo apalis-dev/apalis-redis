@@ -339,8 +339,8 @@ impl Config {
     }
 
     /// Returns the Redis key for the workers metadata key.
-    pub fn worker_metadata_key(&self) -> String {
-        format!("{}:workers:", self.queue.as_ref())
+    pub fn worker_metadata_key(&self, worker: &WorkerContext) -> String {
+        format!("{}:workers:metadata:{}", self.queue.as_ref(), worker.name())
     }
 
     /// Returns the Redis key for the set of dead jobs associated with the queue.
@@ -380,7 +380,7 @@ impl Config {
     }
 
     /// Returns the unique inflight set.
-    pub fn inflight_worker_id(&self, worker: &WorkerContext) -> String {
+    pub fn inflight_set_for(&self, worker: &WorkerContext) -> String {
         format!("{}:{}", self.inflight_jobs_set(), worker.name())
     }
 

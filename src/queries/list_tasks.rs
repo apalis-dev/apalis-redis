@@ -11,7 +11,7 @@ where
 {
     async fn list_tasks(&self, filter: &Filter) -> Result<Vec<RedisTask>, Self::Error> {
         let config = &self.persist.config;
-        let queue = config.queue.as_ref();
+
         let script = Script::new(include_str!("../../lua/list_tasks.lua"));
         let mut conn = self.persist.conn.clone();
         let status_str = filter
@@ -25,7 +25,7 @@ where
         let result: Value = script
             .key(config.job_data_hash())
             .key(config.job_meta_hash())
-            .key(queue)
+            .key(config.queue.as_ref())
             .arg(status_str)
             .arg(page.to_string())
             .arg(page_size.to_string())

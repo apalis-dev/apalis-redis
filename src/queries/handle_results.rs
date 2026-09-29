@@ -7,7 +7,7 @@ use crate::{Config, error::Error, queries::current_timestamp};
 pub(crate) async fn handle_results<C: ConnectionLike>(
     conn: &mut C,
     ack_payloads: &[&TaskResult<Value>],
-    _: &WorkerContext,
+    worker: &WorkerContext,
     config: &Config,
 ) -> Result<(), Error> {
     if ack_payloads.is_empty() {
@@ -18,16 +18,18 @@ pub(crate) async fn handle_results<C: ConnectionLike>(
     let dead_jobs_set = config.dead_jobs_set();
     let job_meta_hash = config.job_meta_hash();
     let scheduled_jobs_set = config.scheduled_jobs_set();
+    let worker_inflight_set = config.inflight_set_for(worker);
 
     let script = Script::new(include_str!("../../lua/handle_results.lua"));
     let mut invocation = script.prepare_invoke();
 
     invocation
-        .key(config.inflight_jobs_set())
+        .key(worker_inflight_set)
         .key(done_jobs_set)
         .key(dead_jobs_set)
         .key(scheduled_jobs_set)
-        .key(job_meta_hash);
+        .key(job_meta_hash)
+        .arg(config.emit_events);
 
     let timestamp = current_timestamp();
 
