@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- deps(deps): bump thiserror from 2.0.20 to 2.0.21 ([#106](https://github.com/apalis-dev/apalis-redis/pull/106))
 - ci(deps): bump actions/checkout from 4 to 7 ([#105](https://github.com/apalis-dev/apalis-redis/pull/105))
 - *fix*: handle inconsistent inflight keys and events ([#104](https://github.com/apalis-dev/apalis-redis/pull/104))
 
