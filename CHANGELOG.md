@@ -7,12 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc.10] - 2026-09-29
+
 - deps(deps): bump redis from 1.7.0 to 1.7.1 ([#107](https://github.com/apalis-dev/apalis-redis/pull/107))
 - deps(deps): bump thiserror from 2.0.20 to 2.0.21 ([#106](https://github.com/apalis-dev/apalis-redis/pull/106))
 - ci(deps): bump actions/checkout from 4 to 7 ([#105](https://github.com/apalis-dev/apalis-redis/pull/105))
 - *fix*: handle inconsistent inflight keys and events ([#104](https://github.com/apalis-dev/apalis-redis/pull/104))
 
-## [1.0.0-rc.8] - 2026-09-23
+## [1.0.0-rc.9] - 2026-09-23
 
 - deps(deps): bump event-listener from 5.4.1 to 5.4.2 ([#97](https://github.com/apalis-dev/apalis-redis/pull/97))
 - deps(deps): bump redis from 1.2.4 to 1.3.0 ([#88](https://github.com/apalis-dev/apalis-redis/pull/88))
