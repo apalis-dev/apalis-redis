@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- ci(deps): bump actions/checkout from 4 to 7 ([#105](https://github.com/apalis-dev/apalis-redis/pull/105))
 - *fix*: handle inconsistent inflight keys and events ([#104](https://github.com/apalis-dev/apalis-redis/pull/104))
 
 ## [1.0.0-rc.8] - 2026-09-23
