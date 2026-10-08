@@ -430,7 +430,9 @@ mod tests {
         let client = Client::open(env::var("REDIS_URL").unwrap()).unwrap();
         let conn = client.get_connection_manager().await.unwrap();
         let config = Config::default().queue("workflow:sample");
-        let mut backend = RedisStorage::new(conn).with_config(config);
+        let mut backend = RedisStorage::new(conn)
+            .with_config(config)
+            .poll_with_interval(Duration::from_millis(1000));
 
         backend.push_start(0u32).await.unwrap();
 
