@@ -69,8 +69,19 @@ where
         .arg(now)
         .arg(config.emit_events);
 
-    for task in worker.tasks() {
-        invocation.arg(task.task_id());
+    #[cfg(feature = "task-tracking")]
+    let tasks = worker
+        .tasks()
+        .map_err(|_| Error::WorkerOutOfSync)?
+        .iter()
+        .map(|t| t.task_id().to_string())
+        .collect::<Vec<_>>();
+
+    #[cfg(not(feature = "task-tracking"))]
+    let tasks: Vec<String> = vec![];
+
+    for task in tasks {
+        invocation.arg(task);
     }
 
     let renewed = invocation.invoke_async::<u32>(conn).await?;

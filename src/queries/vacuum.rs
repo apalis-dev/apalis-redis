@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use apalis_core::backend::{Backend, Vacuum};
 use redis::aio::ConnectionLike;
 
@@ -14,6 +16,16 @@ where
         let items = vacuum_script
             .key(self.persist.config.job_data_hash())
             .key(self.persist.config.job_meta_hash())
+            .invoke_async(self.get_connection())
+            .await?;
+        Ok(items)
+    }
+    async fn vacuum_before(&mut self, duration: Duration) -> Result<usize, Self::Error> {
+        let vacuum_script = redis::Script::new(include_str!("../../lua/vacuum_before.lua"));
+        let items = vacuum_script
+            .key(self.persist.config.job_data_hash())
+            .key(self.persist.config.job_meta_hash())
+            .arg(duration.as_secs())
             .invoke_async(self.get_connection())
             .await?;
         Ok(items)

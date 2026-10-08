@@ -20,13 +20,13 @@ where
 {
     type ResultStream = BoxStream<'static, Result<TaskResult<Res>, Error>>;
 
-    fn wait_for(&self, task_ids: impl IntoIterator<Item = TaskId>) -> Self::ResultStream {
+    fn wait_for(&mut self, task_ids: impl IntoIterator<Item = TaskId>) -> Self::ResultStream {
         let storage = self.clone();
         let pending_ids: HashSet<_> = task_ids.into_iter().map(|id| id.to_string()).collect();
 
         stream::unfold(
             (storage, pending_ids),
-            |(storage, mut pending_ids)| async move {
+            |(mut storage, mut pending_ids)| async move {
                 if pending_ids.is_empty() {
                     return None;
                 }
@@ -67,7 +67,7 @@ where
     }
 
     async fn check_status(
-        &self,
+        &mut self,
         task_ids: impl IntoIterator<Item = TaskId> + Send,
     ) -> Result<Vec<TaskResult<Res>>, Self::Error> {
         use redis::AsyncCommands;

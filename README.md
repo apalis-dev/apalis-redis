@@ -1,5 +1,28 @@
 # apalis-redis
 
+<div align="center">
+  <!-- Crates version -->
+  <a href="https://crates.io/crates/apalis-redis">
+    <img src="https://img.shields.io/crates/v/apalis-redis.svg?style=flat-square"
+    alt="Crates.io version" />
+  </a>
+  <!-- Downloads -->
+  <a href="https://crates.io/crates/apalis-redis">
+    <img src="https://img.shields.io/crates/d/apalis-redis.svg?style=flat-square"
+      alt="Download" />
+  </a>
+  <!-- docs.rs docs -->
+  <a href="https://docs.rs/apalis-redis">
+    <img src="https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square"
+      alt="docs.rs docs" />
+  </a>
+  <a href="https://github.com/apalis-dev/apalis-redis/actions">
+    <img src="https://img.shields.io/github/actions/workflow/status/apalis-dev/apalis-redis/ci.yml?branch=main&style=flat-square"
+      alt="CI" />
+  </a>
+</div>
+<br/>
+
 Background task processing for rust using `apalis` and `redis`
 
 ## Features
