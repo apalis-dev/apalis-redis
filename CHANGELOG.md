@@ -7,16 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-12
+
+- _bump_: Bump to v1.0.0
+
 ## [1.0.0-rc.11] - 2026-10-08
 
-- *bump*: Bump to v1.0.0-rc.11 compatible with apalis-core@1.0.0-rc.12
+- _bump_: Bump to v1.0.0-rc.11 compatible with apalis-core@1.0.0-rc.12
 
 ## [1.0.0-rc.10] - 2026-09-29
 
 - deps(deps): bump redis from 1.7.0 to 1.7.1 ([#107](https://github.com/apalis-dev/apalis-redis/pull/107))
 - deps(deps): bump thiserror from 2.0.20 to 2.0.21 ([#106](https://github.com/apalis-dev/apalis-redis/pull/106))
 - ci(deps): bump actions/checkout from 4 to 7 ([#105](https://github.com/apalis-dev/apalis-redis/pull/105))
-- *fix*: handle inconsistent inflight keys and events ([#104](https://github.com/apalis-dev/apalis-redis/pull/104))
+- _fix_: handle inconsistent inflight keys and events ([#104](https://github.com/apalis-dev/apalis-redis/pull/104))
 
 ## [1.0.0-rc.9] - 2026-09-23
 
@@ -28,75 +32,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ci(deps) : bump pozil/auto-assign-issue from 3 to 4 ([#80](https://github.com/apalis-dev/apalis-redis/pull/80))
 - ci(deps): bump codecov/codecov-action from 6 to 7 ([#78](https://github.com/apalis-dev/apalis-redis/pull/78))
 - deps(deps): bump tokio from 1.52.2 to 1.52.3 ([#71](https://github.com/apalis-dev/apalis-redis/pull/71))
-- *chore*: improve the changelog generation process on prs ([#84](https://github.com/apalis-dev/apalis-redis/pull/84))
-- *fix*: update change log to add CHANGELOG commits
+- _chore_: improve the changelog generation process on prs ([#84](https://github.com/apalis-dev/apalis-redis/pull/84))
+- _fix_: update change log to add CHANGELOG commits
 
 ## [1.0.0-rc.8] - 2026-05-08
 
-- *chore*: add sentinel example
-- *feat*: idempotency for tasks (#67)
-- *chore*: streamline vacuuming and examples (#68)
-- *feat*: add support for cluster mode (#69)
+- _chore_: add sentinel example
+- _feat_: idempotency for tasks (#67)
+- _chore_: streamline vacuuming and examples (#68)
+- _feat_: add support for cluster mode (#69)
 
 ## [1.0.0-rc.7] - 2026-04-09
 
-- *bump*: Bump to v1.0.0-rc.7 (#58)
+- _bump_: Bump to v1.0.0-rc.7 (#58)
 
 ## [1.0.0-rc.6] - 2026-03-18
 
-- *bump*: Bump to v1.0.0-rc.6 (#48)
+- _bump_: Bump to v1.0.0-rc.6 (#48)
 
 ## [1.0.0-rc.4] - 2026-02-21
 
-- *deps(deps)*: bump redis from 0.32 to 1.0 (#39) 
+- _deps(deps)_: bump redis from 0.32 to 1.0 (#39)
 
 ## [1.0.0-rc.3] - 2026-02-03
 
-- *bump*: Bump to v1.0.0-rc.3 (#35)
+- _bump_: Bump to v1.0.0-rc.3 (#35)
 
 ## [1.0.0-rc.2] - 2026-01-10
 
-- *bump*: Bump to v1.0.0-rc.1 (#24)
-- *ci(deps)*: Bump actions/upload-artifact from 4 to 5 (#3) 
-- *deps(deps)*: bump serde_json from 1.0.147 to 1.0.148 (#26) 
+- _bump_: Bump to v1.0.0-rc.1 (#24)
+- _ci(deps)_: Bump actions/upload-artifact from 4 to 5 (#3)
+- _deps(deps)_: bump serde_json from 1.0.147 to 1.0.148 (#26)
 
 ## [0.7.4] - 2025-11-18
 
 ### 💼 Other
 
 - To v0.7.4 (#632)
+
 ## [0.7.3] - 2025-08-14
 
 ### 🐛 Bug Fixes
 
-- *(deps)* Update rust crate redis to 0.32 (#584)
+- _(deps)_ Update rust crate redis to 0.32 (#584)
 
 ### 💼 Other
 
 - Apalis to v0.7.3 (#595)
+
 ## [0.7.2] - 2025-05-27
 
 ### 🐛 Bug Fixes
 
-- *(apalis-redis)* Enable "allow-undeclared-keys" for dragonflydb in `stats.lua` (#567)
-- *(deps)* Update rust crate redis to 0.31 (#555)
+- _(apalis-redis)_ Enable "allow-undeclared-keys" for dragonflydb in `stats.lua` (#567)
+- _(deps)_ Update rust crate redis to 0.31 (#555)
 
 ### 💼 Other
 
 - Apalis to v0.7.2 (#580)
+
 ## [0.7.1] - 2025-04-24
 
 ### 💼 Other
 
 - To v0.7.1 (#559)
+
 ## [0.7.0] - 2025-03-24
 
 ### 🐛 Bug Fixes
 
-- *(deps)* Update rust crate redis to 0.28 (#495)
+- _(deps)_ Update rust crate redis to 0.28 (#495)
 - Reenqueue oprphaned before starting streaming (#507)
 - RedisStorage incorrect running_count stat (#506)
-- *(deps)* Update rust crate redis to 0.29 and deadpool-redis to 0.20 (#527)
+- _(deps)_ Update rust crate redis to 0.29 and deadpool-redis to 0.20 (#527)
 
 ### 💼 Other
 
@@ -107,6 +115,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🧪 Testing
 
 - Integration tests for aborting jobs and panicking workers (#508)
+
 ## [0.6.4] - 2025-01-15
 
 ### 🐛 Bug Fixes
@@ -116,6 +125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 💼 Other
 
 - To v0.6.4 (#500)
+
 ## [0.6.3] - 2025-01-05
 
 ### 💼 Other
@@ -125,11 +135,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Improve examples (#484)
+
 ## [0.6.2] - 2024-12-15
 
 ### 💼 Other
 
 - To v0.6.2 (#482)
+
 ## [0.6.1] - 2024-12-10
 
 ### 🐛 Bug Fixes
@@ -145,13 +157,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Remove unused dependencies (#469)
+
 ## [0.6.0] - 2024-11-28
 
 ### 🐛 Bug Fixes
 
 - Target done jobs with vacuuming instead of dead jobs (#446)
-- *(deps)* Update rust crate tower to 0.5 (#461)
+- _(deps)_ Update rust crate tower to 0.5 (#461)
 - Minor ack bug on redis (#463)
+
 ## [0.5.5] - 2024-09-05
 
 ### 🐛 Bug Fixes
@@ -161,6 +175,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 💼 Other
 
 - To 0.5.5 (#408)
+
 ## [0.5.4] - 2024-09-05
 
 ### 💼 Other
@@ -170,78 +185,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Add repository to metadata (#345)
+
 ## [0.5.3] - 2024-05-27
 
 ### 💼 Other
 
 - Be sure to keep track the job context (#289)
 - To version 0.5.3 (#328)
+
 ## [0.5.2] - 2024-05-20
 
 ### 🐛 Bug Fixes
 
-- *(deps)* Update rust crate async-trait to 0.1.79 (#274)
-- *(deps)* Update rust crate async-trait to 0.1.80 (#293)
-- *(deps)* Update rust crate redis to 0.25.3 (#310)
-- *(deps)* Update rust crate chrono to 0.4.38 (#305)
-- *(deps)* Update rust crate futures to 0.3.30 (#307)
-- *(deps)* Update rust crate async-stream to 0.3.5 (#304)
-- *(deps)* Update rust crate log to 0.4.21 (#308)
+- _(deps)_ Update rust crate async-trait to 0.1.79 (#274)
+- _(deps)_ Update rust crate async-trait to 0.1.80 (#293)
+- _(deps)_ Update rust crate redis to 0.25.3 (#310)
+- _(deps)_ Update rust crate chrono to 0.4.38 (#305)
+- _(deps)_ Update rust crate futures to 0.3.30 (#307)
+- _(deps)_ Update rust crate async-stream to 0.3.5 (#304)
+- _(deps)_ Update rust crate log to 0.4.21 (#308)
 
 ### 💼 Other
 
 - To version 0.5.2 (#322)
+
 ## [0.5.1] - 2024-03-13
 
 ### 🐛 Bug Fixes
 
-- *(deps)* Update rust crate redis to 0.25 (#260)
+- _(deps)_ Update rust crate redis to 0.25 (#260)
 
 ### 💼 Other
 
 - To version 0.5.1 (#265)
+
 ## [0.4.9] - 2024-01-10
 
 ### 💼 Other
 
 - To v0.4.9 (#232)
+
 ## [0.4.8] - 2024-01-05
 
 ### 🚀 Features
 
 - Configurable worker set as dead (#220)
-- [**breaking**] Configurable concurrency per worker  (#222)
+- [**breaking**] Configurable concurrency per worker (#222)
 
 ### 🐛 Bug Fixes
 
-- *(deps)* Update rust crate redis to 0.24 (#216)
-- *(deps)* Update rust crate async-trait to 0.1.77 (#225)
+- _(deps)_ Update rust crate redis to 0.24 (#216)
+- _(deps)_ Update rust crate async-trait to 0.1.77 (#225)
 
 ### 💼 Other
 
 - To v0.4.8 (#229)
+
 ## [0.4.7] - 2023-11-18
 
 ### 🐛 Bug Fixes
 
 - Allow cargo build --all-features (#204)
+
 ## [0.4.6] - 2023-11-09
 
 ### 🐛 Bug Fixes
 
-- *(deps)* Update rust crate async-trait to 0.1.74
+- _(deps)_ Update rust crate async-trait to 0.1.74
+
 ## [0.4.5] - 2023-10-11
 
 ### 🐛 Bug Fixes
 
-- *(deps)* Update rust crate async-trait to 0.1.73
+- _(deps)_ Update rust crate async-trait to 0.1.73
 
 ### 💼 Other
 
 - V0.4.5
+
 ## [0.4.4] - 2023-07-31
 
 ### 💼 Other
 
 - To version v0.4.4
+
 ## [0.3.0] - 2022-06-05
