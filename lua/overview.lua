@@ -2,11 +2,50 @@
 -- ARGV[1]: current timestamp
 -- ARGV[2...]: queue names
 -- Returns: JSON array of Statistic objects
+--
+-- Terminal state keys (done/dead) are sorted sets scored by completion time in
+-- new deployments and plain sets in older ones. Counts work for both shapes;
+-- time-window metrics are only available for sorted sets.
 
 local now = tonumber(ARGV[1])
 local queues = {}
 for i = 2, #ARGV do
     table.insert(queues, ARGV[i])
+end
+
+local function key_type(key)
+    local key_type = redis.call('TYPE', key)
+    if type(key_type) == 'table' then
+        return key_type['ok']
+    end
+    return key_type
+end
+
+local function state_count(key)
+    local kind = key_type(key)
+    if kind == 'zset' then
+        return redis.call('ZCARD', key)
+    elseif kind == 'set' then
+        return redis.call('SCARD', key)
+    end
+    return 0
+end
+
+local function window_count(key, min, max)
+    if key_type(key) == 'zset' then
+        return redis.call('ZCOUNT', key, min, max)
+    end
+    return 0
+end
+
+local function latest_score(key)
+    if key_type(key) == 'zset' then
+        local recent = redis.call('ZREVRANGE', key, 0, 0, 'WITHSCORES')
+        if #recent > 0 then
+            return tonumber(recent[2])
+        end
+    end
+    return 0
 end
 
 local total_active = 0
@@ -16,6 +55,7 @@ local total_inflight = 0
 local total_1h = 0
 local total_24h = 0
 local total_failed_7d = 0
+local done_24h = 0
 local most_recent_ts = 0
 
 local one_hour_ago = now - 3600
@@ -25,30 +65,36 @@ local seven_days_ago = now - (7 * 86400)
 for _, q in ipairs(queues) do
     local active = q .. ":active"
     local done = q .. ":done"
-    local failed = q .. ":dead"
+    local dead = q .. ":dead"
     local inflight = q .. ":inflight"
 
-    local active_count = redis.call("llen", active)
-    local done_count = redis.call("zcard", done)
-    local failed_count = redis.call("zcard", failed)
-    local inflight_count = redis.call("scard", inflight)
+    local active_count = redis.call("LLEN", active)
+    local done_count = state_count(done)
+    local failed_count = state_count(dead)
+    local inflight_count = redis.call("SCARD", inflight)
 
     total_active = total_active + active_count
     total_done = total_done + done_count
     total_failed = total_failed + failed_count
     total_inflight = total_inflight + inflight_count
 
-    total_1h = total_1h + redis.call("zcount", done, one_hour_ago, now) + redis.call("zcount", failed, one_hour_ago, now)
-    total_24h = total_24h + redis.call("zcount", done, day_ago, now) + redis.call("zcount", failed, day_ago, now)
-    total_failed_7d = total_failed_7d + redis.call("zcount", failed, seven_days_ago, now)
+    local done_1h = window_count(done, one_hour_ago, now)
+    local failed_1h = window_count(dead, one_hour_ago, now)
+    local queue_done_24h = window_count(done, day_ago, now)
+    local queue_failed_24h = window_count(dead, day_ago, now)
+    done_24h = done_24h + queue_done_24h
 
-    local recent_done = redis.call("zrevrange", done, 0, 0, "WITHSCORES")
-    local recent_failed = redis.call("zrevrange", failed, 0, 0, "WITHSCORES")
-    if #recent_done > 0 and tonumber(recent_done[2]) > most_recent_ts then
-        most_recent_ts = tonumber(recent_done[2])
+    total_1h = total_1h + done_1h + failed_1h
+    total_24h = total_24h + queue_done_24h + queue_failed_24h
+    total_failed_7d = total_failed_7d + window_count(dead, seven_days_ago, now)
+
+    local recent_done = latest_score(done)
+    local recent_dead = latest_score(dead)
+    if recent_done > most_recent_ts then
+        most_recent_ts = recent_done
     end
-    if #recent_failed > 0 and tonumber(recent_failed[2]) > most_recent_ts then
-        most_recent_ts = tonumber(recent_failed[2])
+    if recent_dead > most_recent_ts then
+        most_recent_ts = recent_dead
     end
 end
 
@@ -62,9 +108,7 @@ end
 
 local success_rate_24h = 0
 if total_24h > 0 then
-    local done_24h = redis.call("zcount", queues[1] .. ":done", day_ago, now)
-    local failed_24h = redis.call("zcount", queues[1] .. ":dead", day_ago, now)
-    success_rate_24h = (done_24h / (done_24h + failed_24h)) * 100
+    success_rate_24h = (done_24h / total_24h) * 100
 end
 
 local avg_jobs_per_hour_24h = total_24h / 24

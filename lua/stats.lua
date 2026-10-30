@@ -11,26 +11,34 @@
 -- KEYS[4]: the failed jobs set
 -- KEYS[5]: the success jobs set
 
--- Returns: nil
+local function key_type(key)
+    local key_type = redis.call('TYPE', key)
+    if type(key_type) == 'table' then
+        return key_type['ok']
+    end
+    return key_type
+end
 
--- Returns the number of jobs in each state
+local function state_count(key)
+    local kind = key_type(key)
+    if kind == 'zset' then
+        return redis.call('ZCARD', key)
+    elseif kind == 'set' then
+        return redis.call('SCARD', key)
+    end
+    return 0
+end
 
-local pending_jobs_set = KEYS[1]
-local worker_set = KEYS[2]
-local dead_jobs_set = KEYS[3]
-local failed_jobs_set = KEYS[4]
-local success_jobs_set = KEYS[5]
-
-local workers = redis.call("zrangebyscore", worker_set, 0, "+inf")
+local workers = redis.call("ZRANGEBYSCORE", KEYS[2], 0, "+inf")
 
 local running_count = 0
 for _, worker_inflight_set in ipairs(workers) do
     running_count = running_count + redis.call("SCARD", worker_inflight_set)
 end
 
-local pending_count = redis.call('LLEN', pending_jobs_set)
-local dead_count = redis.call('ZCARD', dead_jobs_set)
-local failed_count = redis.call('ZCARD', failed_jobs_set)
-local success_count = redis.call('ZCARD', success_jobs_set)
+local pending_count = redis.call('LLEN', KEYS[1])
+local dead_count = state_count(KEYS[3])
+local failed_count = state_count(KEYS[4])
+local success_count = state_count(KEYS[5])
 
 return { pending_count, running_count, dead_count, failed_count, success_count }
