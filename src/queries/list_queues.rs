@@ -4,7 +4,7 @@ use redis::Script;
 use crate::{
     RedisStorage,
     error::Error,
-    queries::{QUEUES_REGISTRY, current_timestamp, queue_names, window_count},
+    queries::{QUEUES_REGISTRY, current_timestamp, queue_names},
 };
 
 impl<Args, Conn> ListQueues for RedisStorage<Args, Conn>
@@ -65,17 +65,14 @@ where
 {
     const DAY_SECS: u64 = 86_400;
     let today_start = (now / DAY_SECS) * DAY_SECS;
-    let done = format!("{queue}:done");
-    let dead = format!("{queue}:dead");
-    let mut activity = Vec::with_capacity(7);
-
-    for offset in (0..7).rev() {
-        let start = (today_start - offset * DAY_SECS) as i64;
-        let end = start + DAY_SECS as i64 - 1;
-        let completed = window_count(conn, &done, start, end).await?;
-        let failed = window_count(conn, &dead, start, end).await?;
-        activity.push((completed + failed) as usize);
-    }
+    let script = Script::new(include_str!("../../lua/queue_activity.lua"));
+    let activity: Vec<usize> = script
+        .key(format!("{queue}:done"))
+        .key(format!("{queue}:dead"))
+        .arg(today_start)
+        .arg(DAY_SECS)
+        .invoke_async(conn)
+        .await?;
 
     Ok(activity)
 }
