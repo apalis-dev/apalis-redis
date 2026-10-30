@@ -14,7 +14,7 @@ where
         let mut conn = self.persist.conn.clone();
 
         async move {
-            let worker_metadata_key = format!("{}:workers:", config.queue);
+            let worker_metadata_key = format!("{}:workers:metadata:", config.queue);
             let json: String = Script::new(include_str!("../../lua/list_workers.lua"))
                 .key(config.workers_set())
                 .key(worker_metadata_key)

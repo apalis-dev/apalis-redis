@@ -22,6 +22,52 @@ fn current_timestamp() -> u64 {
         .as_secs()
 }
 
+/// Sorted set written by `register_worker.lua`: members are the queues'
+/// `<queue>:workers` keys, scored by last registration time.
+pub(crate) const QUEUES_REGISTRY: &str = "core:apalis:queues:list";
+
+/// Normalizes the global registry into unique queue names.
+pub(crate) fn queue_names(entries: &[String]) -> Vec<String> {
+    let mut names: Vec<String> = entries
+        .iter()
+        .filter_map(|entry| entry.strip_suffix(":workers").map(str::to_string))
+        .collect();
+    names.sort();
+    names.dedup();
+    names
+}
+
+/// Returns the Redis key type, or `none` when the key does not exist.
+pub(crate) async fn key_type<C>(conn: &mut C, key: &str) -> Result<String, redis::RedisError>
+where
+    C: redis::aio::ConnectionLike + Send,
+{
+    redis::cmd("TYPE").arg(key).query_async(conn).await
+}
+
+/// Counts members of a sorted set within a score range. Plain sets have no
+/// scores, so they count as zero.
+pub(crate) async fn window_count<C>(
+    conn: &mut C,
+    key: &str,
+    min: i64,
+    max: i64,
+) -> Result<u64, redis::RedisError>
+where
+    C: redis::aio::ConnectionLike + Send,
+{
+    if key_type(conn, key).await?.as_str() == "zset" {
+        redis::cmd("ZCOUNT")
+            .arg(key)
+            .arg(min)
+            .arg(max)
+            .query_async(conn)
+            .await
+    } else {
+        Ok(0)
+    }
+}
+
 pub use fetch_next::CompactTask;
 pub use fetch_next::deserialize_with_meta;
 pub use fetch_next::fetch_next;

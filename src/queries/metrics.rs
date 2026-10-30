@@ -1,7 +1,11 @@
 use apalis_core::backend::{Backend, Metrics, Statistic};
 use redis::Script;
 
-use crate::{RedisStorage, build_error, error::Error, queries::current_timestamp};
+use crate::{
+    RedisStorage,
+    error::Error,
+    queries::{QUEUES_REGISTRY, current_timestamp, queue_names},
+};
 
 impl<Args, Conn> Metrics for RedisStorage<Args, Conn>
 where
@@ -13,56 +17,41 @@ where
         let mut conn = self.persist.conn.clone();
 
         async move {
-            let queues = redis::cmd("ZRANGE")
-                .arg("core:apalis:queues")
+            let entries: Vec<String> = redis::cmd("ZRANGE")
+                .arg(QUEUES_REGISTRY)
                 .arg(0)
                 .arg(-1)
-                .query_async::<Vec<String>>(&mut conn)
+                .query_async(&mut conn)
                 .await?;
-            let lua = include_str!("../../lua/overview.lua");
-            let script = Script::new(lua);
-            let now = current_timestamp();
-            let mut script = &mut script.arg(now);
-            for queue in queues {
-                script = script.key(queue);
+            let script = Script::new(include_str!("../../lua/overview.lua"));
+            let mut invocation = script.prepare_invoke();
+            invocation.arg(current_timestamp());
+            for queue in queue_names(&entries) {
+                invocation.arg(queue);
             }
-            let res = script
-                .invoke_async::<String>(&mut conn)
-                .await
-                .and_then(|json| {
-                    let stats: Vec<Statistic> =
-                        serde_json::from_str(&json).map_err(|e| build_error(&e.to_string()))?;
-                    Ok(stats)
-                })?;
 
-            Ok(res)
+            let json: String = invocation.invoke_async(&mut conn).await?;
+            let stats: Vec<Statistic> = serde_json::from_str(&json).map_err(Error::Json)?;
+            Ok(stats)
         }
     }
+
     fn fetch_by_queue(&self) -> impl Future<Output = Result<Vec<Statistic>, Self::Error>> + Send {
+        let config = self.persist.config.clone();
         let mut conn = self.persist.conn.clone();
 
-        let queue_name = self.persist.config.queue.to_string();
         async move {
-            let lua = include_str!("../../lua/overview_by_queue.lua");
-            let script = Script::new(lua);
+            let script = Script::new(include_str!("../../lua/overview_by_queue.lua"));
+            let mut invocation = script.prepare_invoke();
+            invocation
+                .key(config.active_jobs_list())
+                .key(config.done_jobs_set())
+                .key(config.dead_jobs_set())
+                .key(config.inflight_jobs_set())
+                .arg(current_timestamp());
 
-            let active = format!("{}:active", queue_name);
-            let done = format!("{}:done", queue_name);
-            let dead = format!("{}:dead", queue_name);
-            let inflight = format!("{}:inflight", queue_name);
-
-            // Execute the Lua script with 4 keys
-            let json: String = script
-                .key(active)
-                .key(done)
-                .key(dead)
-                .key(inflight)
-                .invoke_async(&mut conn)
-                .await?;
-
-            let stats: Vec<Statistic> =
-                serde_json::from_str(&json).map_err(|e| build_error(&e.to_string()))?;
-
+            let json: String = invocation.invoke_async(&mut conn).await?;
+            let stats: Vec<Statistic> = serde_json::from_str(&json).map_err(Error::Json)?;
             Ok(stats)
         }
     }
