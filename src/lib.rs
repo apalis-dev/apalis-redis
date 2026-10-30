@@ -179,7 +179,7 @@ where
                 async move {
                     redis::cmd("ZREM")
                         .arg(config.workers_set())
-                        .arg(config.inflight_set_for(&worker))
+                        .arg(worker.name())
                         .query_async::<u32>(&mut conn)
                         .await?;
                     Ok(())
