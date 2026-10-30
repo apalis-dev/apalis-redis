@@ -250,6 +250,38 @@ async fn legacy_set_state_is_counted_without_windows() {
 }
 
 #[tokio::test]
+async fn mixed_sorted_and_legacy_set_states_are_counted() {
+    let queue = queue_name("mixed");
+    let mut conn = connection().await;
+    let storage = storage(conn.clone(), &queue);
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    let _: i64 = redis::cmd("ZADD")
+        .arg(format!("{queue}:done"))
+        .arg(now)
+        .arg("018f0000-0000-0000-0000-000000000021")
+        .query_async(&mut conn)
+        .await
+        .expect("seed sorted set done");
+    let _: i64 = redis::cmd("SADD")
+        .arg(format!("{queue}:dead"))
+        .arg("018f0000-0000-0000-0000-000000000022")
+        .query_async(&mut conn)
+        .await
+        .expect("seed legacy dead set");
+
+    let stats = storage.fetch_by_queue().await.expect("queue stats");
+    assert_eq!(stat_value(&stats, "DONE_JOBS"), 1);
+    assert_eq!(stat_value(&stats, "FAILED_JOBS"), 1);
+    assert_eq!(stat_value(&stats, "JOBS_PAST_HOUR"), 1);
+
+    cleanup(&mut conn, &queue).await;
+}
+
+#[tokio::test]
 async fn workers_are_listed_with_metadata_and_their_queue() {
     let queue = queue_name("workers");
     let mut conn = connection().await;
@@ -272,6 +304,14 @@ async fn workers_are_listed_with_metadata_and_their_queue() {
     assert!(info.workers.contains(&seen.id));
 
     worker.stop().await;
+    assert!(
+        storage
+            .list_workers()
+            .await
+            .expect("list workers after shutdown")
+            .is_empty(),
+        "a stopped worker is removed from its queue"
+    );
     cleanup(&mut conn, &queue).await;
 }
 
