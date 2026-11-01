@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- _fix_: repair Redis introspection queries used by `apalis-board` (queues, workers, metrics and tasks), keeping compatibility with set-backed job states ([#116](https://github.com/apalis-dev/apalis-redis/pull/116))
+
 ## [1.0.0] - 2026-10-12
 
 - _bump_: Bump to v1.0.0

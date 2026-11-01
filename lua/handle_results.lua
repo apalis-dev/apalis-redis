@@ -16,6 +16,24 @@ local args_per_task = 5
 local num_tasks = (#ARGV - 1) / args_per_task
 local acked = 0
 
+-- Terminal states are stored as sorted sets scored by completion time. Older
+-- deployments stored them as plain sets, so append to whichever shape the key
+-- already has instead of failing with WRONGTYPE.
+local function add_terminal_state(key, task_id, timestamp)
+    local key_type = redis.call('TYPE', key)
+    if type(key_type) == 'table' then
+        key_type = key_type['ok']
+    end
+
+    if key_type == 'none' or key_type == 'zset' then
+        redis.call('ZADD', key, timestamp, task_id)
+    elseif key_type == 'set' then
+        redis.call('SADD', key, task_id)
+    else
+        error('Unsupported data type for ' .. key .. ': ' .. key_type)
+    end
+end
+
 for i = 0, num_tasks - 1 do
     local base = (i * args_per_task + 1)
     local task_id = ARGV[base + 1]
@@ -30,7 +48,7 @@ for i = 0, num_tasks - 1 do
     end
 
     if status == 'Done' then
-        redis.call('SADD', done_jobs_set, task_id)
+        add_terminal_state(done_jobs_set, task_id, timestamp)
         if emit_events then
             redis.call("publish", "tasks:" .. done_jobs_set, task_id)
         end
@@ -45,7 +63,7 @@ for i = 0, num_tasks - 1 do
             redis.call("publish", "tasks:" .. scheduled_jobs_set .. ':retry', task_id)
         end
     else
-        redis.call('SADD', dead_jobs_set, task_id)
+        add_terminal_state(dead_jobs_set, task_id, timestamp)
         if emit_events then
             redis.call("publish", "tasks:" .. dead_jobs_set, task_id)
         end

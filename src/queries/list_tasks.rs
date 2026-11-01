@@ -25,7 +25,7 @@ where
         let result: Value = script
             .key(config.job_data_hash())
             .key(config.job_meta_hash())
-            .key(config.queue.as_ref())
+            .key(config.active_jobs_list())
             .arg(status_str)
             .arg(page.to_string())
             .arg(page_size.to_string())

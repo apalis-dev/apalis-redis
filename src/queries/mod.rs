@@ -22,6 +22,21 @@ fn current_timestamp() -> u64 {
         .as_secs()
 }
 
+/// Sorted set written by `register_worker.lua`: members are the queues'
+/// `<queue>:workers` keys, scored by last registration time.
+pub(crate) const QUEUES_REGISTRY: &str = "core:apalis:queues:list";
+
+/// Normalizes the global registry into unique queue names.
+pub(crate) fn queue_names(entries: &[String]) -> Vec<String> {
+    let mut names: Vec<String> = entries
+        .iter()
+        .filter_map(|entry| entry.strip_suffix(":workers").map(str::to_string))
+        .collect();
+    names.sort();
+    names.dedup();
+    names
+}
+
 pub use fetch_next::CompactTask;
 pub use fetch_next::deserialize_with_meta;
 pub use fetch_next::fetch_next;
