@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- deps(deps): bump redis from 1.7.1 to 1.8.0 ([#117](https://github.com/apalis-dev/apalis-redis/pull/117))
 ## [1.0.0] - 2026-10-12
 
 - _bump_: Bump to v1.0.0
