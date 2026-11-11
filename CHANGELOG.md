@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- _fix_: ensure ack handles max_attempts and RetryAfterError ([#121](https://github.com/apalis-dev/apalis-redis/pull/121))
+
 ## [1.1.0](https://github.com/apalis-dev/apalis-redis/releases/tag/v1.1.0)
 
 - chore: add auto-release and auto-changelog scripts ([#119](https://github.com/apalis-dev/apalis-redis/pull/119))
