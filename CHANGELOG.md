@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0](https://github.com/apalis-dev/apalis-redis/releases/tag/v1.1.0)
+
 - chore: add auto-release and auto-changelog scripts ([#119](https://github.com/apalis-dev/apalis-redis/pull/119))
 - _fix_: repair Redis introspection queries used by `apalis-board` (queues, workers, metrics and tasks), keeping compatibility with set-backed job states ([#116](https://github.com/apalis-dev/apalis-redis/pull/116))
 
