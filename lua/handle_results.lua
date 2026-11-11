@@ -34,6 +34,39 @@ local function add_terminal_state(key, task_id, timestamp)
     end
 end
 
+-- Parses a retry delay out of result_data, returning it in seconds, or nil if absent.
+-- Expects serde's Result encoding: {"Ok": ...} or {"Err": "RetryError: ..., duration: 1.5s"}
+local unit_to_seconds = {
+    s = 1,
+    ms = 1e-3,
+    ["µs"] = 1e-6, -- multibyte, so match on the raw UTF-8 string
+    ns = 1e-9
+}
+
+local function try_parse_retry_delay(result_data)
+    -- Cheap prefilter to avoid decoding JSON for ordinary failures
+    if not result_data or not string.find(result_data, 'RetryAfterError:', 1, true) then
+        return nil
+    end
+
+    local ok, decoded = pcall(cjson.decode, result_data)
+    if not ok or type(decoded) ~= 'table' or type(decoded.Err) ~= 'string' then
+        return nil
+    end
+
+    local amount, unit = string.match(decoded.Err, ', duration: ([%d%.]+)([^%d%.]+)$')
+    local factor = unit and unit_to_seconds[unit]
+    if not amount or not factor then
+        return nil
+    end
+
+    local value = tonumber(amount)
+    if not value then
+        return nil
+    end
+    return math.ceil(value * factor)
+end
+
 for i = 0, num_tasks - 1 do
     local base = (i * args_per_task + 1)
     local task_id = ARGV[base + 1]
@@ -47,18 +80,23 @@ for i = 0, num_tasks - 1 do
         error("task not executed by worker")
     end
 
+    local meta_key = job_meta_hash .. ':' .. task_id
+
+    -- Read max_attempts as stored at enqueue time. HGET returns false if the
+    -- field is missing (e.g. tasks enqueued by an older version), so fall back
+    -- to the previous default of 25 in that case.
+    local max_attempts = tonumber(redis.call('HGET', meta_key, 'max_attempts')) or 25
+
     if status == 'Done' then
         add_terminal_state(done_jobs_set, task_id, timestamp)
         if emit_events then
             redis.call("publish", "tasks:" .. done_jobs_set, task_id)
         end
 
-    elseif (status == 'Failed' or status == 'Pending') and (tonumber(attempt) or 0) < 25 then
-        -- TODO: @geofmureithi: Update lifecycle to check max_attempt so we hardcode 25
-        -- We might also want to handle RetryAfter
-        -- e if e.downcast_ref::<AbortError>().is_some() => Status::Killed,
-        -- we also for now simulate a basic backoff timestamp + attempt
-        redis.call("zadd", scheduled_jobs_set, tonumber(timestamp) + tonumber(attempt), task_id)
+    elseif (status == 'Failed' or status == 'Pending') and (tonumber(attempt) or 0) < max_attempts then
+        -- Prefer the handler-requested delay (RetryAfterError), else simple backoff
+        local delay = try_parse_retry_delay(result_data) or (tonumber(attempt) or 0)
+        redis.call("zadd", scheduled_jobs_set, tonumber(timestamp) + delay, task_id)
         if emit_events then
             redis.call("publish", "tasks:" .. scheduled_jobs_set .. ':retry', task_id)
         end
@@ -69,7 +107,6 @@ for i = 0, num_tasks - 1 do
         end
     end
 
-    local meta_key = job_meta_hash .. ':' .. task_id
     redis.call('HSET', meta_key, 'result', result_data, 'status', status, 'attempts', attempt, 'done_at', timestamp)
 
     acked = acked + 1
