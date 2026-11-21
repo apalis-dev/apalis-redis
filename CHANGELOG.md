@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- *deps(deps)*: bump apalis-codec from 1.1.1 to 1.2.0 ([#124](https://github.com/apalis-dev/apalis-redis/pull/124))
 ## [1.1.1](https://github.com/apalis-dev/apalis-redis/releases/tag/v1.1.1)
 
 - _fix_: ensure ack handles max_attempts and RetryAfterError ([#121](https://github.com/apalis-dev/apalis-redis/pull/121))
