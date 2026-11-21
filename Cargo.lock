@@ -28,9 +28,9 @@ dependencies = [
 
 [[package]]
 name = "apalis-codec"
-version = "1.1.1"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c6135753b0ed8ffd17f7eb12e94101f669c2e751f7f1357e5e2922447101b17"
+checksum = "c83ba913ee1b2a705787c385b2f270ed72e8c69f6544d004f40a82d164b2093c"
 dependencies = [
  "apalis-core",
  "bincode",
@@ -42,9 +42,9 @@ dependencies = [
 
 [[package]]
 name = "apalis-core"
-version = "1.1.1"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cde2e3f63ffc101f373f4e8181225c2122edae08289350266d4a254626d0aa1f"
+checksum = "3a96aeab395a16930e64f8836af56ba5c20232a330f7e63032abccf397a39742"
 dependencies = [
  "dashmap",
  "futures-channel",
