@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0](https://github.com/apalis-dev/apalis-redis/releases/tag/v1.2.0)
+
 - *deps(deps)*: bump apalis-core from 1.1.1 to 1.2.0 ([#123](https://github.com/apalis-dev/apalis-redis/pull/123))
 ## [1.1.1](https://github.com/apalis-dev/apalis-redis/releases/tag/v1.1.1)
 
